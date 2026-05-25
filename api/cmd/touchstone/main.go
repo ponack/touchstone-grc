@@ -15,6 +15,7 @@ import (
 	"github.com/ponack/touchstone/internal/config"
 	"github.com/ponack/touchstone/internal/db"
 	"github.com/ponack/touchstone/internal/server"
+	"github.com/ponack/touchstone/internal/worker"
 )
 
 func main() {
@@ -65,8 +66,24 @@ func workerCmd() *cobra.Command {
 		Use:   "worker",
 		Short: "Run the background job worker (River)",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Wired in Phase 1 with the first connector scan job.
-			return fmt.Errorf("worker not yet implemented")
+			cfg, err := config.Load()
+			if err != nil {
+				return err
+			}
+			ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+			defer cancel()
+
+			pool, err := db.Open(ctx, cfg)
+			if err != nil {
+				return err
+			}
+			defer pool.Close()
+
+			d, err := worker.New(pool)
+			if err != nil {
+				return err
+			}
+			return d.Start(ctx)
 		},
 	}
 }
