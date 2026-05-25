@@ -1,0 +1,28 @@
+.env
+.env.*
+!.env.example
+*.local
+
+# Go
+api/bin/
+api/dist/
+*.test
+*.out
+*.prof
+
+# Node
+ui/node_modules/
+ui/.svelte-kit/
+ui/build/
+ui/.env
+
+# Editor
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Local secrets / scratch
+/tmp-*
+*.pem
+*.key
