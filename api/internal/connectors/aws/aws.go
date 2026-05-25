@@ -16,6 +16,7 @@
 package aws
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -47,6 +48,38 @@ type Connector struct{}
 func New() *Connector { return &Connector{} }
 
 func (Connector) Kind() connectors.Kind { return connectors.KindAWS }
+
+// Scan enumerates the configured AWS account. PR D.2 covers IAM only;
+// S3, EC2, CloudTrail, GuardDuty, Config, KMS, RDS arrive in
+// follow-ups as the SOC 2 rego policies that need them are written.
+func (Connector) Scan(ctx context.Context, cfgRaw, secretRaw json.RawMessage) (*connectors.ScanResult, error) {
+	var cfg PublicConfig
+	if err := json.Unmarshal(cfgRaw, &cfg); err != nil {
+		return nil, fmt.Errorf("decode config: %w", err)
+	}
+	var sec Secret
+	if cfg.AuthMethod == "key" {
+		if len(secretRaw) == 0 {
+			return nil, errors.New("aws scan: auth_method=key requires a secret")
+		}
+		if err := json.Unmarshal(secretRaw, &sec); err != nil {
+			return nil, fmt.Errorf("decode secret: %w", err)
+		}
+	}
+
+	awsCfg, err := buildAWSConfig(ctx, cfg, sec)
+	if err != nil {
+		return nil, err
+	}
+
+	res := &connectors.ScanResult{}
+	iamRes, err := scanIAM(ctx, awsCfg)
+	if err != nil {
+		return nil, err
+	}
+	res.Resources = append(res.Resources, iamRes...)
+	return res, nil
+}
 
 func (Connector) Validate(raw json.RawMessage) (json.RawMessage, json.RawMessage, error) {
 	var in struct {

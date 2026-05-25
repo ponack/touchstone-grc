@@ -13,8 +13,11 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/ponack/touchstone/internal/config"
+	"github.com/ponack/touchstone/internal/connectors"
+	awsconn "github.com/ponack/touchstone/internal/connectors/aws"
 	"github.com/ponack/touchstone/internal/db"
 	"github.com/ponack/touchstone/internal/server"
+	"github.com/ponack/touchstone/internal/storage"
 	"github.com/ponack/touchstone/internal/worker"
 )
 
@@ -79,7 +82,18 @@ func workerCmd() *cobra.Command {
 			}
 			defer pool.Close()
 
-			d, err := worker.New(pool)
+			store, err := storage.New(cfg)
+			if err != nil {
+				return err
+			}
+			if err := store.EnsureBuckets(ctx); err != nil {
+				return err
+			}
+
+			registry := connectors.NewRegistry()
+			registry.Register(awsconn.New())
+
+			d, err := worker.New(pool, registry, cfg.SecretKey, store)
 			if err != nil {
 				return err
 			}
