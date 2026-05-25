@@ -28,7 +28,10 @@ func Run(ctx context.Context, cfg *config.Config, pool *pgxpool.Pool) error {
 		return c.JSON(http.StatusOK, map[string]string{"status": "ok"})
 	})
 
-	authH := auth.NewHandler(cfg, pool)
+	authH, err := auth.NewHandler(cfg, pool)
+	if err != nil {
+		return err
+	}
 	authH.Register(e)
 
 	v1 := e.Group("/api/v1", auth.RequireUser(cfg.SecretKey))
