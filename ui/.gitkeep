@@ -1,3 +1,0 @@
-# Placeholder. SvelteKit app scaffolds in a follow-up step:
-#   cd ui && pnpm create svelte@latest .
-# Mirror crucible-iap/ui setup (Svelte 5 Runes, Tailwind v4, SSR).

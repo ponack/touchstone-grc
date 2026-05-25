@@ -1,0 +1,278 @@
+@import 'tailwindcss';
+
+@utility bg-page {
+	background-color: var(--page-bg);
+}
+
+@layer base {
+	/* ── Cold Forge (default) — teal-slate, hue 185 ── */
+	:root {
+		--radius: 0.5rem;
+		--page-bg: #0f1a18;
+		--accent: #2DD4BF;
+		--accent-muted: rgba(45, 212, 191, 0.08);
+		--accent-border: rgba(45, 212, 191, 0.18);
+		color-scheme: dark;
+
+		--color-zinc-950: oklch(10.5% 0.008 185);
+		--color-zinc-900: oklch(14.8% 0.012 185);
+		--color-zinc-800: oklch(20.8% 0.016 185);
+		--color-zinc-700: oklch(31.2% 0.018 185);
+		--color-zinc-600: oklch(43.5% 0.020 185);
+		--color-zinc-500: oklch(54.0% 0.018 185);
+		--color-zinc-400: oklch(68.5% 0.016 185);
+		--color-zinc-300: oklch(78.5% 0.013 185);
+		--color-zinc-200: oklch(87.5% 0.010 185);
+		--color-zinc-100: oklch(93.5% 0.006 185);
+		--color-zinc-50:  oklch(97.5% 0.003 185);
+	}
+
+	/* Cold Forge light */
+	:root.light {
+		color-scheme: light;
+		--page-bg: #f0faf8;
+		--color-zinc-950: oklch(98.4% .002 185);
+		--color-zinc-900: oklch(96.7% .003 185);
+		--color-zinc-800: oklch(92%  .006 185);
+		--color-zinc-700: oklch(87%  .009 185);
+		--color-zinc-600: oklch(70%  .016 185);
+		--color-zinc-500: oklch(57%  .018 185);
+		--color-zinc-400: oklch(44%  .017 185);
+		--color-zinc-300: oklch(37%  .013 185);
+		--color-zinc-200: oklch(27%  .008 185);
+		--color-zinc-100: oklch(21%  .006 185);
+		--color-zinc-50:  oklch(14%  .005 185);
+		--color-white:    oklch(14%  .005 185);
+	}
+
+	/* ── Hot Forge — copper-amber, hue 42 ── */
+	:root.hot-forge {
+		--page-bg: #170e06;
+		--accent: #D4883C;
+		--accent-muted: rgba(212, 136, 60, 0.08);
+		--accent-border: rgba(212, 136, 60, 0.18);
+		color-scheme: dark;
+
+		--color-zinc-950: oklch(10.5% 0.012 42);
+		--color-zinc-900: oklch(14.8% 0.018 42);
+		--color-zinc-800: oklch(20.8% 0.024 42);
+		--color-zinc-700: oklch(31.2% 0.026 42);
+		--color-zinc-600: oklch(43.5% 0.028 42);
+		--color-zinc-500: oklch(54.0% 0.026 42);
+		--color-zinc-400: oklch(68.5% 0.022 42);
+		--color-zinc-300: oklch(78.5% 0.018 42);
+		--color-zinc-200: oklch(87.5% 0.014 42);
+		--color-zinc-100: oklch(93.5% 0.008 42);
+		--color-zinc-50:  oklch(97.5% 0.004 42);
+	}
+
+	/* Hot Forge light */
+	:root.hot-forge.light {
+		color-scheme: light;
+		--page-bg: #fdf6ee;
+		--color-zinc-950: oklch(98.4% .002 42);
+		--color-zinc-900: oklch(96.7% .004 42);
+		--color-zinc-800: oklch(92%  .008 42);
+		--color-zinc-700: oklch(87%  .012 42);
+		--color-zinc-600: oklch(70%  .020 42);
+		--color-zinc-500: oklch(57%  .022 42);
+		--color-zinc-400: oklch(44%  .020 42);
+		--color-zinc-300: oklch(37%  .016 42);
+		--color-zinc-200: oklch(27%  .010 42);
+		--color-zinc-100: oklch(21%  .008 42);
+		--color-zinc-50:  oklch(14%  .006 42);
+		--color-white:    oklch(14%  .006 42);
+	}
+
+	/* ── Neutral Forge — standard zinc, hue 286, indigo accent ── */
+	:root.neutral-forge {
+		--page-bg: #111113;
+		--accent: #818cf8;
+		--accent-muted: rgba(129, 140, 248, 0.08);
+		--accent-border: rgba(129, 140, 248, 0.18);
+		color-scheme: dark;
+
+		--color-zinc-950: oklch(10.5% 0.004 286);
+		--color-zinc-900: oklch(15.1% 0.006 286);
+		--color-zinc-800: oklch(21.4% 0.007 286);
+		--color-zinc-700: oklch(31.6% 0.008 286);
+		--color-zinc-600: oklch(44.2% 0.017 286);
+		--color-zinc-500: oklch(55.2% 0.016 286);
+		--color-zinc-400: oklch(70.5% 0.015 286);
+		--color-zinc-300: oklch(83.5% 0.010 286);
+		--color-zinc-200: oklch(92.0% 0.004 286);
+		--color-zinc-100: oklch(96.7% 0.001 286);
+		--color-zinc-50:  oklch(98.5% 0.001 286);
+	}
+
+	/* Neutral Forge light */
+	:root.neutral-forge.light {
+		color-scheme: light;
+		--page-bg: #f9fafb;
+		--color-zinc-950: oklch(98.4% .002 286);
+		--color-zinc-900: oklch(96.7% .001 286);
+		--color-zinc-800: oklch(92%  .004 286);
+		--color-zinc-700: oklch(87%  .006 286);
+		--color-zinc-600: oklch(70%  .015 286);
+		--color-zinc-500: oklch(57%  .016 286);
+		--color-zinc-400: oklch(44%  .017 286);
+		--color-zinc-300: oklch(37%  .013 286);
+		--color-zinc-200: oklch(27%  .006 286);
+		--color-zinc-100: oklch(21%  .006 286);
+		--color-zinc-50:  oklch(14%  .005 286);
+		--color-white:    oklch(14%  .005 286);
+	}
+
+	/* ── Ember Forge — deep red, hue 15 ── */
+	:root.ember-forge {
+		--page-bg: #160a0a;
+		--accent: #E05252;
+		--accent-muted: rgba(224, 82, 82, 0.08);
+		--accent-border: rgba(224, 82, 82, 0.18);
+		color-scheme: dark;
+
+		--color-zinc-950: oklch(10.5% 0.014 15);
+		--color-zinc-900: oklch(14.8% 0.020 15);
+		--color-zinc-800: oklch(20.8% 0.028 15);
+		--color-zinc-700: oklch(31.2% 0.030 15);
+		--color-zinc-600: oklch(43.5% 0.032 15);
+		--color-zinc-500: oklch(54.0% 0.030 15);
+		--color-zinc-400: oklch(68.5% 0.026 15);
+		--color-zinc-300: oklch(78.5% 0.020 15);
+		--color-zinc-200: oklch(87.5% 0.014 15);
+		--color-zinc-100: oklch(93.5% 0.009 15);
+		--color-zinc-50:  oklch(97.5% 0.004 15);
+	}
+
+	/* Ember Forge light */
+	:root.ember-forge.light {
+		color-scheme: light;
+		--page-bg: #fef5f5;
+		--color-zinc-950: oklch(98.4% .002 15);
+		--color-zinc-900: oklch(96.7% .004 15);
+		--color-zinc-800: oklch(92%  .008 15);
+		--color-zinc-700: oklch(87%  .013 15);
+		--color-zinc-600: oklch(70%  .022 15);
+		--color-zinc-500: oklch(57%  .024 15);
+		--color-zinc-400: oklch(44%  .022 15);
+		--color-zinc-300: oklch(37%  .018 15);
+		--color-zinc-200: oklch(27%  .012 15);
+		--color-zinc-100: oklch(21%  .009 15);
+		--color-zinc-50:  oklch(14%  .006 15);
+		--color-white:    oklch(14%  .006 15);
+	}
+
+	/* ── Frost Forge — arctic blue, hue 220 ── */
+	:root.frost-forge {
+		--page-bg: #080f18;
+		--accent: #60A5FA;
+		--accent-muted: rgba(96, 165, 250, 0.08);
+		--accent-border: rgba(96, 165, 250, 0.18);
+		color-scheme: dark;
+
+		--color-zinc-950: oklch(10.5% 0.010 220);
+		--color-zinc-900: oklch(14.8% 0.014 220);
+		--color-zinc-800: oklch(20.8% 0.020 220);
+		--color-zinc-700: oklch(31.2% 0.022 220);
+		--color-zinc-600: oklch(43.5% 0.024 220);
+		--color-zinc-500: oklch(54.0% 0.022 220);
+		--color-zinc-400: oklch(68.5% 0.019 220);
+		--color-zinc-300: oklch(78.5% 0.015 220);
+		--color-zinc-200: oklch(87.5% 0.011 220);
+		--color-zinc-100: oklch(93.5% 0.007 220);
+		--color-zinc-50:  oklch(97.5% 0.003 220);
+	}
+
+	/* Frost Forge light */
+	:root.frost-forge.light {
+		color-scheme: light;
+		--page-bg: #f0f5ff;
+		--color-zinc-950: oklch(98.4% .002 220);
+		--color-zinc-900: oklch(96.7% .003 220);
+		--color-zinc-800: oklch(92%  .007 220);
+		--color-zinc-700: oklch(87%  .010 220);
+		--color-zinc-600: oklch(70%  .018 220);
+		--color-zinc-500: oklch(57%  .019 220);
+		--color-zinc-400: oklch(44%  .018 220);
+		--color-zinc-300: oklch(37%  .014 220);
+		--color-zinc-200: oklch(27%  .009 220);
+		--color-zinc-100: oklch(21%  .007 220);
+		--color-zinc-50:  oklch(14%  .005 220);
+		--color-white:    oklch(14%  .005 220);
+	}
+
+	/* ── Gold Forge — warm gold, hue 78 ── */
+	:root.gold-forge {
+		--page-bg: #130f00;
+		--accent: #F5C542;
+		--accent-muted: rgba(245, 197, 66, 0.08);
+		--accent-border: rgba(245, 197, 66, 0.18);
+		color-scheme: dark;
+
+		--color-zinc-950: oklch(10.5% 0.014 78);
+		--color-zinc-900: oklch(14.8% 0.020 78);
+		--color-zinc-800: oklch(20.8% 0.028 78);
+		--color-zinc-700: oklch(31.2% 0.030 78);
+		--color-zinc-600: oklch(43.5% 0.032 78);
+		--color-zinc-500: oklch(54.0% 0.030 78);
+		--color-zinc-400: oklch(68.5% 0.026 78);
+		--color-zinc-300: oklch(78.5% 0.020 78);
+		--color-zinc-200: oklch(87.5% 0.015 78);
+		--color-zinc-100: oklch(93.5% 0.009 78);
+		--color-zinc-50:  oklch(97.5% 0.004 78);
+	}
+
+	/* Gold Forge light */
+	:root.gold-forge.light {
+		color-scheme: light;
+		--page-bg: #fdfbf0;
+		--color-zinc-950: oklch(98.4% .002 78);
+		--color-zinc-900: oklch(96.7% .004 78);
+		--color-zinc-800: oklch(92%  .008 78);
+		--color-zinc-700: oklch(87%  .013 78);
+		--color-zinc-600: oklch(70%  .022 78);
+		--color-zinc-500: oklch(57%  .024 78);
+		--color-zinc-400: oklch(44%  .022 78);
+		--color-zinc-300: oklch(37%  .018 78);
+		--color-zinc-200: oklch(27%  .012 78);
+		--color-zinc-100: oklch(21%  .009 78);
+		--color-zinc-50:  oklch(14%  .006 78);
+		--color-white:    oklch(14%  .006 78);
+	}
+
+	html,
+	body {
+		background-color: var(--page-bg);
+		color: var(--color-zinc-100);
+		min-height: 100%;
+		transition: background-color 150ms ease, color 150ms ease;
+	}
+}
+
+/* Shared form input style used across many pages */
+@utility field-input {
+	display: block;
+	width: 100%;
+	background-color: var(--color-zinc-900);
+	border: 1px solid var(--color-zinc-700);
+	border-radius: var(--radius);
+	color: var(--color-zinc-100);
+	font-size: 0.875rem;
+	padding: 0.375rem 0.625rem;
+	transition: border-color 150ms ease, box-shadow 150ms ease;
+	outline: none;
+
+	&:focus {
+		border-color: var(--accent);
+		box-shadow: 0 0 0 2px var(--accent-muted);
+	}
+
+	&::placeholder {
+		color: var(--color-zinc-600);
+	}
+
+	&:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+}
