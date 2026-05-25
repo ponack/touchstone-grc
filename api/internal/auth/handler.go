@@ -4,37 +4,70 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"log/slog"
 	"net/http"
 
+	gooidc "github.com/coreos/go-oidc/v3/oidc"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v4"
+	"golang.org/x/oauth2"
 
 	"github.com/ponack/touchstone/internal/audit"
 	"github.com/ponack/touchstone/internal/config"
 )
 
 type Handler struct {
-	cfg  *config.Config
-	pool *pgxpool.Pool
+	cfg      *config.Config
+	pool     *pgxpool.Pool
+	provider *gooidc.Provider
+	oauth2   *oauth2.Config
 }
 
-func NewHandler(cfg *config.Config, pool *pgxpool.Pool) *Handler {
-	return &Handler{cfg: cfg, pool: pool}
+func NewHandler(cfg *config.Config, pool *pgxpool.Pool) (*Handler, error) {
+	h := &Handler{cfg: cfg, pool: pool}
+
+	if cfg.OIDC.IssuerURL != "" {
+		if cfg.OIDC.ClientID == "" || cfg.OIDC.ClientSecret == "" || cfg.OIDC.RedirectURL == "" {
+			return nil, fmt.Errorf("OIDC_ISSUER_URL is set but OIDC_CLIENT_ID / OIDC_CLIENT_SECRET / OIDC_REDIRECT_URL are missing")
+		}
+		provider, err := gooidc.NewProvider(context.Background(), cfg.OIDC.IssuerURL)
+		if err != nil {
+			return nil, fmt.Errorf("initialise OIDC provider %q: %w", cfg.OIDC.IssuerURL, err)
+		}
+		h.provider = provider
+		h.oauth2 = &oauth2.Config{
+			ClientID:     cfg.OIDC.ClientID,
+			ClientSecret: cfg.OIDC.ClientSecret,
+			RedirectURL:  cfg.OIDC.RedirectURL,
+			Endpoint:     provider.Endpoint(),
+			Scopes:       []string{gooidc.ScopeOpenID, "profile", "email"},
+		}
+		slog.Info("OIDC configured", "issuer", cfg.OIDC.IssuerURL)
+	}
+
+	return h, nil
 }
 
-// Register wires the auth routes onto the Echo group.
+// Register wires the auth routes onto the Echo group. OIDC routes are
+// registered only when the provider has been configured.
 func (h *Handler) Register(e *echo.Echo) {
 	e.GET("/auth/config", h.GetAuthConfig)
 	e.POST("/auth/login", h.LocalLogin)
 	e.POST("/auth/logout", h.Logout)
+
+	if h.provider != nil {
+		e.GET("/auth/oidc/start", h.OIDCStart)
+		e.GET("/auth/oidc/callback", h.OIDCCallback)
+	}
 }
 
 // GetAuthConfig advertises which authentication methods are available.
 func (h *Handler) GetAuthConfig(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]bool{
-		"oidc":  false, // wired in a follow-up PR
+		"oidc":  h.provider != nil,
 		"local": h.cfg.Local.Enabled,
 	})
 }
@@ -70,20 +103,9 @@ func (h *Handler) LocalLogin(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to provision user")
 	}
 
-	token, exp, err := SignSession(h.cfg.SecretKey, userID, orgID, req.Email, req.Email)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to mint session")
+	if err := h.issueSession(c, userID, orgID, req.Email, req.Email); err != nil {
+		return err
 	}
-
-	c.SetCookie(&http.Cookie{
-		Name:     SessionCookieName,
-		Value:    token,
-		Path:     "/",
-		Expires:  exp,
-		HttpOnly: true,
-		Secure:   h.cfg.Env == "production",
-		SameSite: http.SameSiteLaxMode,
-	})
 
 	ctxJSON, _ := json.Marshal(map[string]string{"email": req.Email, "method": "local"})
 	audit.Record(c.Request().Context(), h.pool, audit.Event{
@@ -113,6 +135,26 @@ func (h *Handler) Logout(c echo.Context) error {
 		SameSite: http.SameSiteLaxMode,
 	})
 	return c.NoContent(http.StatusNoContent)
+}
+
+// issueSession signs a session JWT and sets the HttpOnly cookie. Shared
+// by the local-auth and OIDC paths so the session shape stays identical
+// regardless of which method authenticated the user.
+func (h *Handler) issueSession(c echo.Context, userID, orgID uuid.UUID, email, name string) error {
+	token, exp, err := SignSession(h.cfg.SecretKey, userID, orgID, email, name)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to mint session")
+	}
+	c.SetCookie(&http.Cookie{
+		Name:     SessionCookieName,
+		Value:    token,
+		Path:     "/",
+		Expires:  exp,
+		HttpOnly: true,
+		Secure:   h.cfg.Env == "production",
+		SameSite: http.SameSiteLaxMode,
+	})
+	return nil
 }
 
 // upsertLocalAdmin returns (userID, orgID) for the local-auth admin. On
