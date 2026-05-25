@@ -29,12 +29,12 @@ type PostgresConfig struct {
 }
 
 type MinIOConfig struct {
-	Endpoint         string
-	AccessKey        string
-	SecretKey        string
-	BucketEvidence   string
-	BucketArtifacts  string
-	UseSSL           bool
+	Endpoint        string
+	AccessKey       string
+	SecretKey       string
+	BucketEvidence  string
+	BucketArtifacts string
+	UseSSL          bool
 }
 
 type OIDCConfig struct {
