@@ -13,6 +13,7 @@ import (
 	"github.com/ponack/touchstone/internal/config"
 	"github.com/ponack/touchstone/internal/connectors"
 	awsconn "github.com/ponack/touchstone/internal/connectors/aws"
+	"github.com/ponack/touchstone/internal/frameworks"
 )
 
 // Run starts the Echo HTTP server and blocks until ctx is cancelled.
@@ -29,6 +30,10 @@ func Run(ctx context.Context, cfg *config.Config, pool *pgxpool.Pool) error {
 		}
 		return c.JSON(http.StatusOK, map[string]string{"status": "ok"})
 	})
+
+	if err := frameworks.Load(ctx, pool); err != nil {
+		return err
+	}
 
 	authH, err := auth.NewHandler(cfg, pool)
 	if err != nil {
@@ -50,6 +55,7 @@ func Run(ctx context.Context, cfg *config.Config, pool *pgxpool.Pool) error {
 	})
 
 	connectors.NewHandler(pool, registry, cfg.SecretKey).Register(v1)
+	frameworks.NewHandler(pool).Register(v1)
 
 	go func() {
 		<-ctx.Done()

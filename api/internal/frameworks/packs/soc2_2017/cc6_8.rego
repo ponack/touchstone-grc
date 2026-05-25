@@ -1,0 +1,14 @@
+# SOC 2 2017 — control cc6.8 (case-insensitive).
+#
+# Placeholder. Real evaluation lands in PR D alongside the AWS
+# connector scan workflow. Returning "not_applicable" keeps the
+# control catalog complete + auditable without producing unverifiable
+# evidence.
+
+package soc2_2017.cc6_8
+
+default status := "not_applicable"
+
+default message := "Awaiting AWS scan implementation."
+
+default failures := []
