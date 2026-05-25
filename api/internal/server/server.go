@@ -11,6 +11,8 @@ import (
 
 	"github.com/ponack/touchstone/internal/auth"
 	"github.com/ponack/touchstone/internal/config"
+	"github.com/ponack/touchstone/internal/connectors"
+	awsconn "github.com/ponack/touchstone/internal/connectors/aws"
 )
 
 // Run starts the Echo HTTP server and blocks until ctx is cancelled.
@@ -34,6 +36,9 @@ func Run(ctx context.Context, cfg *config.Config, pool *pgxpool.Pool) error {
 	}
 	authH.Register(e)
 
+	registry := connectors.NewRegistry()
+	registry.Register(awsconn.New())
+
 	v1 := e.Group("/api/v1", auth.RequireUser(cfg.SecretKey))
 	v1.GET("/me", func(c echo.Context) error {
 		return c.JSON(http.StatusOK, map[string]any{
@@ -43,6 +48,8 @@ func Run(ctx context.Context, cfg *config.Config, pool *pgxpool.Pool) error {
 			"name":    c.Get(auth.ContextName),
 		})
 	})
+
+	connectors.NewHandler(pool, registry, cfg.SecretKey).Register(v1)
 
 	go func() {
 		<-ctx.Done()
