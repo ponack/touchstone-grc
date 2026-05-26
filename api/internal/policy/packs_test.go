@@ -307,3 +307,99 @@ func TestCC6_7_FailsWhenEncryptionDisabled(t *testing.T) {
 		t.Fatalf("got %d failures, want 1", len(d.Failures))
 	}
 }
+
+// ── CC6.6 — EC2 Security Groups ─────────────────────────────────────────────
+
+func sgResource(id string, rules []any) map[string]any {
+	return map[string]any{
+		"type": "aws.ec2.security_group",
+		"id":   id,
+		"attrs": map[string]any{
+			"group_id":      id[len(id)-11:], // last "sg-xxxxxx"
+			"region":        "us-east-1",
+			"ingress_rules": rules,
+		},
+	}
+}
+
+func sgRule(proto string, from, to int, v4, v6 []any) map[string]any {
+	return map[string]any{
+		"protocol":   proto,
+		"from_port":  from,
+		"to_port":    to,
+		"ipv4_cidrs": v4,
+		"ipv6_cidrs": v6,
+	}
+}
+
+func TestCC6_6_FailsOnWorldOpenSSH(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	sg := sgResource("arn:aws:ec2:us-east-1::security-group/sg-bad01234", []any{
+		sgRule("tcp", 22, 22, []any{"0.0.0.0/0"}, []any{}),
+	})
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc6_6.rego", map[string]any{"resources": []any{sg}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "fail" {
+		t.Fatalf("status = %q, want fail; message=%q", d.Status, d.Message)
+	}
+}
+
+func TestCC6_6_FailsOnAllProtocolsWorldOpen(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	sg := sgResource("arn:aws:ec2:us-east-1::security-group/sg-allprot01", []any{
+		sgRule("-1", 0, 65535, []any{"0.0.0.0/0"}, []any{}),
+	})
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc6_6.rego", map[string]any{"resources": []any{sg}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "fail" {
+		t.Fatalf("status = %q, want fail", d.Status)
+	}
+}
+
+func TestCC6_6_PassesOnRestrictedIngress(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	sg := sgResource("arn:aws:ec2:us-east-1::security-group/sg-private01", []any{
+		// Webserver: world-open 443 is intentionally OK.
+		sgRule("tcp", 443, 443, []any{"0.0.0.0/0"}, []any{}),
+		// SSH only from corporate CIDR.
+		sgRule("tcp", 22, 22, []any{"10.0.0.0/8"}, []any{}),
+	})
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc6_6.rego", map[string]any{"resources": []any{sg}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "pass" {
+		t.Fatalf("status = %q, want pass; message=%q", d.Status, d.Message)
+	}
+}
+
+func TestCC6_6_FailsWhenRangeCoversSensitivePort(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	// 1000-4000 world-open covers MySQL (3306) and MS SQL (1433).
+	sg := sgResource("arn:aws:ec2:us-east-1::security-group/sg-range0001", []any{
+		sgRule("tcp", 1000, 4000, []any{"0.0.0.0/0"}, []any{}),
+	})
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc6_6.rego", map[string]any{"resources": []any{sg}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "fail" {
+		t.Fatalf("status = %q, want fail", d.Status)
+	}
+}
