@@ -70,7 +70,7 @@ services:
       retries: 3
       start_period: 15s
     ports:
-      - "${TOUCHSTONE_API_EXPOSE:-127.0.0.1}:${TOUCHSTONE_API_PORT:-8080}:8080"
+      - "${TOUCHSTONE_API_EXPOSE:-127.0.0.1}:${TOUCHSTONE_API_PORT:-8090}:8080"
     depends_on:
       postgres:
         condition: service_healthy
@@ -132,7 +132,7 @@ services:
       PORT: "3000"
       ORIGIN: "${TOUCHSTONE_BASE_URL}"
     ports:
-      - "${TOUCHSTONE_UI_EXPOSE:-127.0.0.1}:${TOUCHSTONE_UI_PORT:-3000}:3000"
+      - "${TOUCHSTONE_UI_EXPOSE:-127.0.0.1}:${TOUCHSTONE_UI_PORT:-3010}:3000"
     networks:
       - frontend
 
@@ -201,7 +201,7 @@ services:
       GF_ANALYTICS_REPORTING_ENABLED: "false"
       GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
     ports:
-      - "${TOUCHSTONE_GRAFANA_EXPOSE:-127.0.0.1}:${TOUCHSTONE_GRAFANA_PORT:-3001}:3000"
+      - "${TOUCHSTONE_GRAFANA_EXPOSE:-127.0.0.1}:${TOUCHSTONE_GRAFANA_PORT:-3011}:3000"
     volumes:
       - grafana_data:/var/lib/grafana
     networks:
@@ -226,7 +226,7 @@ services:
       AUTHENTIK_BOOTSTRAP_EMAIL: "${AUTHENTIK_BOOTSTRAP_EMAIL}"
       AUTHENTIK_BOOTSTRAP_PASSWORD: "${AUTHENTIK_BOOTSTRAP_PASSWORD}"
     ports:
-      - "${AUTHENTIK_EXPOSE:-127.0.0.1}:${AUTHENTIK_PORT:-9000}:9000"
+      - "${AUTHENTIK_EXPOSE:-127.0.0.1}:${AUTHENTIK_PORT:-9010}:9000"
     depends_on:
       - postgres
       - authentik-redis
