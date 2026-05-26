@@ -1,12 +1,21 @@
-# Touchstone
+<!-- markdownlint-disable MD033 -->
+# Touchstone GRC
 
-Self-hosted compliance evidence collector. Vanta / Drata / Secureframe alternative.
+<p align="center">
+  <img src="assets/logo-primary-dark-512.png" alt="Touchstone GRC" width="200" />
+</p>
+
+<p align="center">
+  Self-hosted compliance evidence collector. Vanta / Drata / Secureframe alternative.
+  <br />
+  By <a href="https://www.forgedinfeatherstechnology.com">Forged in Feathers Technology</a>.
+</p>
+
+---
 
 Sibling project to [Crucible IAP](https://github.com/ponack/crucible-iap). Standalone — runs without Crucible. Optional integration via public API in a later phase.
 
-> **Status:** Pre-alpha. Scaffolding only. Not yet runnable.
-
-By [Forged in Feathers Technology](https://www.forgedinfeatherstechnology.com).
+> **Status:** Pre-alpha. Phase 0 (foundation) is complete; Phase 1 (AWS + SOC 2) is in progress.
 
 ## What it does
 
@@ -37,8 +46,8 @@ docker compose up -d
 
 ## Roadmap
 
-- **Phase 0** — Foundation: auth, RBAC (admin/member/auditor), audit log, OPA, multi-org. *(in progress)*
-- **Phase 1** — MVP: AWS connector + SOC 2 control pack subset.
+- **Phase 0** — Foundation: auth, RBAC (admin/member/auditor), audit log, OPA, multi-org. *(complete)*
+- **Phase 1** — MVP: AWS connector + SOC 2 control pack subset. *(in progress)*
 - **Phase 2** — Connector breadth: GitHub, Google Workspace, Okta, M365.
 - **Phase 3** — Framework breadth: CIS AWS, HIPAA, PCI-DSS, ISO 27001.
 - **Phase 4** — GRC surface: personnel, asset inventory, vendor register, risk register.

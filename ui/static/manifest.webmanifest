@@ -1,0 +1,13 @@
+{
+	"name": "Touchstone GRC",
+	"short_name": "Touchstone",
+	"description": "Self-hosted compliance evidence collector",
+	"start_url": "/",
+	"display": "standalone",
+	"background_color": "#0c1a20",
+	"theme_color": "#0c1a20",
+	"icons": [
+		{ "src": "/icon-192x192.png", "sizes": "192x192", "type": "image/png" },
+		{ "src": "/icon-512x512.png", "sizes": "512x512", "type": "image/png" }
+	]
+}
