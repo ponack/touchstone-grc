@@ -28,10 +28,54 @@ func NewHandler(pool *pgxpool.Pool) *Handler {
 // Register wires:
 //
 //	GET /api/v1/scans/:id/evidence — list this scan's evidence items
+//	GET /api/v1/evidence/latest    — most recent evidence per control
+//	                                  across enabled frameworks for the org
 //	GET /api/v1/evidence/:id       — full detail including decision JSON
 func (h *Handler) Register(g *echo.Group) {
 	g.GET("/scans/:id/evidence", h.ListForScan)
+	g.GET("/evidence/latest", h.Latest)
 	g.GET("/evidence/:id", h.Get)
+}
+
+type latestRow struct {
+	ID            uuid.UUID `json:"id"`
+	ScanID        uuid.UUID `json:"scan_id"`
+	ControlID     uuid.UUID `json:"control_id"`
+	ControlCode   string    `json:"control_code"`
+	ControlTitle  string    `json:"control_title"`
+	FrameworkCode string    `json:"framework_code"`
+	Status        string    `json:"status"`
+	CollectedAt   time.Time `json:"collected_at"`
+}
+
+func (h *Handler) Latest(c echo.Context) error {
+	orgID := c.Get(auth.ContextOrgID).(uuid.UUID)
+
+	rows, err := h.pool.Query(c.Request().Context(), `
+		SELECT DISTINCT ON (e.control_id)
+		       e.id, e.scan_id, e.control_id, c.code, c.title, f.code,
+		       e.status, e.collected_at
+		FROM evidence_items e
+		JOIN controls c        ON c.id = e.control_id
+		JOIN frameworks f      ON f.id = c.framework_id
+		JOIN org_frameworks of ON of.framework_id = f.id AND of.org_id = e.org_id
+		WHERE e.org_id = $1
+		ORDER BY e.control_id, e.collected_at DESC
+	`, orgID)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	out := []latestRow{}
+	for rows.Next() {
+		var r latestRow
+		if err := rows.Scan(&r.ID, &r.ScanID, &r.ControlID, &r.ControlCode, &r.ControlTitle, &r.FrameworkCode, &r.Status, &r.CollectedAt); err != nil {
+			return err
+		}
+		out = append(out, r)
+	}
+	return c.JSON(http.StatusOK, map[string]any{"evidence": out})
 }
 
 type summary struct {

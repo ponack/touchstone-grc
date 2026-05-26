@@ -40,6 +40,22 @@ export async function listForScan(scanId: string): Promise<EvidenceSummary[]> {
 	return evidence;
 }
 
+export interface LatestEvidence {
+	id: string;
+	scan_id: string;
+	control_id: string;
+	control_code: string;
+	control_title: string;
+	framework_code: string;
+	status: EvidenceStatus;
+	collected_at: string;
+}
+
+export async function listLatest(): Promise<LatestEvidence[]> {
+	const { evidence } = await request<{ evidence: LatestEvidence[] }>('/evidence/latest');
+	return evidence;
+}
+
 export async function getEvidence(id: string): Promise<EvidenceDetail> {
 	return request<EvidenceDetail>(`/evidence/${id}`);
 }
