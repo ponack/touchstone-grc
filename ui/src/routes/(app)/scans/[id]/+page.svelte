@@ -5,7 +5,7 @@
 	import { getConnector, type Connector } from '$lib/api/connectors';
 	import { toasts } from '$lib/stores/toasts.svelte';
 	import StatusPill from '$lib/components/StatusPill.svelte';
-	import { Loader2 } from 'lucide-svelte';
+	import { Loader2, Download } from 'lucide-svelte';
 
 	let scan = $state<Scan | null>(null);
 	let connector = $state<Connector | null>(null);
@@ -84,11 +84,22 @@
 	{:else if !scan}
 		<p class="mt-6 text-sm text-red-400">Scan not found.</p>
 	{:else}
-		<div class="mt-2 flex items-center gap-3">
-			<h1 class="text-2xl font-semibold tracking-tight text-zinc-100">
-				{connector?.name ?? 'Scan'}
-			</h1>
-			<StatusPill status={scan.status} />
+		<div class="mt-2 flex items-start justify-between gap-3">
+			<div class="flex items-center gap-3">
+				<h1 class="text-2xl font-semibold tracking-tight text-zinc-100">
+					{connector?.name ?? 'Scan'}
+				</h1>
+				<StatusPill status={scan.status} />
+			</div>
+			{#if !isActive && evidence.length > 0}
+				<a
+					href={`/api/v1/scans/${scan.id}/export.csv`}
+					class="flex items-center gap-1.5 rounded-md border border-zinc-700 px-3 py-1.5 text-sm text-zinc-200 hover:border-zinc-600"
+				>
+					<Download class="h-4 w-4" />
+					Export CSV
+				</a>
+			{/if}
 		</div>
 		<p class="mt-1 text-xs text-zinc-500">{scan.id}</p>
 
