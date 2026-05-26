@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 
 	"github.com/spf13/viper"
@@ -128,7 +129,18 @@ func Load() (*Config, error) {
 	return cfg, nil
 }
 
+// DSN renders the Postgres connection string with proper URL escaping
+// of the userinfo. Passwords containing reserved characters
+// (e.g. <, >, ?, #, /, @, :, ,) would otherwise produce
+// "net/url: invalid userinfo" at golang-migrate / pgx parse time —
+// a real bug that bit a v0.1.0 operator before this was fixed.
 func (p PostgresConfig) DSN() string {
-	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
-		p.User, p.Password, p.Host, p.Port, p.DB)
+	u := url.URL{
+		Scheme:   "postgres",
+		User:     url.UserPassword(p.User, p.Password),
+		Host:     p.Host + ":" + p.Port,
+		Path:     "/" + p.DB,
+		RawQuery: "sslmode=disable",
+	}
+	return u.String()
 }
