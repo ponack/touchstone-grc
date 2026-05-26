@@ -15,6 +15,7 @@ import (
 	awsconn "github.com/ponack/touchstone/internal/connectors/aws"
 	"github.com/ponack/touchstone/internal/evidence"
 	"github.com/ponack/touchstone/internal/exceptions"
+	"github.com/ponack/touchstone/internal/exports"
 	"github.com/ponack/touchstone/internal/frameworks"
 	"github.com/ponack/touchstone/internal/queue"
 	"github.com/ponack/touchstone/internal/scans"
@@ -68,6 +69,7 @@ func Run(ctx context.Context, cfg *config.Config, pool *pgxpool.Pool) error {
 	scans.NewHandler(pool, q).Register(v1)
 	evidence.NewHandler(pool).Register(v1)
 	exceptions.NewHandler(pool).Register(v1)
+	exports.NewHandler(pool).Register(v1)
 
 	go func() {
 		<-ctx.Done()
