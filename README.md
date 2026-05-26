@@ -58,6 +58,10 @@ ghcr.io/ponack/touchstone-api:0.1.0
 ghcr.io/ponack/touchstone-ui:0.1.0
 ```
 
+Running behind an external reverse proxy (OPNsense, Traefik, nginx, separate Caddy)?
+See [docs/reverse-proxy.md](docs/reverse-proxy.md) for the routing rules + a working
+Caddy / nginx snippet.
+
 ## Roadmap
 
 - **Phase 0** — Foundation: auth, RBAC (admin/member/auditor), audit log, OPA, multi-org. *(complete)*
