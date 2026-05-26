@@ -20,6 +20,7 @@ import (
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 
 	"github.com/ponack/touchstone/internal/connectors"
+	"github.com/ponack/touchstone/internal/policy"
 	"github.com/ponack/touchstone/internal/queue"
 	"github.com/ponack/touchstone/internal/secretbox"
 	"github.com/ponack/touchstone/internal/storage"
@@ -32,18 +33,20 @@ type Dispatcher struct {
 	registry  *connectors.Registry
 	secretKey string
 	storage   *storage.Client
+	engine    *policy.Engine
 	river     *river.Client[pgx.Tx]
 }
 
 // New builds the worker dispatcher and registers every job type
 // Touchstone knows how to process.
-func New(pool *pgxpool.Pool, registry *connectors.Registry, secretKey string, store *storage.Client) (*Dispatcher, error) {
+func New(pool *pgxpool.Pool, registry *connectors.Registry, secretKey string, store *storage.Client, engine *policy.Engine) (*Dispatcher, error) {
 	workers := river.NewWorkers()
 	river.AddWorker(workers, &ScanWorker{
 		pool:      pool,
 		registry:  registry,
 		secretKey: secretKey,
 		storage:   store,
+		engine:    engine,
 	})
 
 	rc, err := river.NewClient(riverpgxv5.New(pool), &river.Config{
@@ -61,6 +64,7 @@ func New(pool *pgxpool.Pool, registry *connectors.Registry, secretKey string, st
 		registry:  registry,
 		secretKey: secretKey,
 		storage:   store,
+		engine:    engine,
 		river:     rc,
 	}, nil
 }
@@ -90,6 +94,7 @@ type ScanWorker struct {
 	registry  *connectors.Registry
 	secretKey string
 	storage   *storage.Client
+	engine    *policy.Engine
 }
 
 type scanContext struct {
@@ -123,6 +128,11 @@ func (w *ScanWorker) Work(ctx context.Context, job *river.Job[queue.ScanJobArgs]
 		return w.failScan(ctx, scanID, fmt.Sprintf("upload: %v", err))
 	}
 
+	evCount, err := w.evaluateControls(ctx, sc.orgID, scanID, result)
+	if err != nil {
+		return w.failScan(ctx, scanID, fmt.Sprintf("evaluate: %v", err))
+	}
+
 	if err := w.markSucceeded(ctx, scanID, key, len(result.Resources)); err != nil {
 		return err
 	}
@@ -130,9 +140,70 @@ func (w *ScanWorker) Work(ctx context.Context, job *river.Job[queue.ScanJobArgs]
 	slog.Info("scan job complete",
 		"scan_id", scanID,
 		"resources", len(result.Resources),
+		"evidence_items", evCount,
 		"artifact_key", key,
 	)
 	return nil
+}
+
+// evaluateControls runs every enabled control for the org against the
+// scan artifact and writes one evidence_items row per control. Errors
+// during a single control's evaluation are captured as Status="error"
+// evidence rather than aborting the whole pass — the auditor sees
+// exactly which controls broke and why.
+func (w *ScanWorker) evaluateControls(ctx context.Context, orgID, scanID uuid.UUID, result *connectors.ScanResult) (int, error) {
+	rows, err := w.pool.Query(ctx, `
+		SELECT c.id, c.policy_path
+		FROM controls c
+		JOIN org_frameworks ofw ON ofw.framework_id = c.framework_id
+		WHERE ofw.org_id = $1
+		ORDER BY c.code
+	`, orgID)
+	if err != nil {
+		return 0, fmt.Errorf("list enabled controls: %w", err)
+	}
+	defer rows.Close()
+
+	type ctl struct {
+		id         uuid.UUID
+		policyPath string
+	}
+	var controls []ctl
+	for rows.Next() {
+		var c ctl
+		if err := rows.Scan(&c.id, &c.policyPath); err != nil {
+			return 0, err
+		}
+		controls = append(controls, c)
+	}
+
+	tx, err := w.pool.Begin(ctx)
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback(ctx)
+
+	for _, c := range controls {
+		decision, evalErr := w.engine.Evaluate(ctx, c.policyPath, result)
+		if evalErr != nil {
+			decision = &policy.Decision{
+				Status:  "error",
+				Message: fmt.Sprintf("policy evaluation failed: %v", evalErr),
+			}
+		}
+		details, _ := json.Marshal(decision)
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO evidence_items (org_id, scan_id, control_id, status, details)
+			VALUES ($1, $2, $3, $4, $5)
+		`, orgID, scanID, c.id, decision.Status, details); err != nil {
+			return 0, fmt.Errorf("insert evidence for %s: %w", c.policyPath, err)
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return 0, err
+	}
+	return len(controls), nil
 }
 
 func (w *ScanWorker) loadScanContext(ctx context.Context, scanID uuid.UUID) (*scanContext, error) {
