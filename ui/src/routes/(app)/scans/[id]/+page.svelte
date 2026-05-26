@@ -92,13 +92,23 @@
 				<StatusPill status={scan.status} />
 			</div>
 			{#if !isActive && evidence.length > 0}
-				<a
-					href={`/api/v1/scans/${scan.id}/export.csv`}
-					class="flex items-center gap-1.5 rounded-md border border-zinc-700 px-3 py-1.5 text-sm text-zinc-200 hover:border-zinc-600"
-				>
-					<Download class="h-4 w-4" />
-					Export CSV
-				</a>
+				<div class="flex items-center gap-2">
+					<a
+						href={`/api/v1/scans/${scan.id}/export.csv`}
+						class="flex items-center gap-1.5 rounded-md border border-zinc-700 px-3 py-1.5 text-sm text-zinc-200 hover:border-zinc-600"
+					>
+						<Download class="h-4 w-4" />
+						CSV
+					</a>
+					<a
+						href={`/api/v1/scans/${scan.id}/export.pdf`}
+						class="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-zinc-950"
+						style="background-color: var(--accent);"
+					>
+						<Download class="h-4 w-4" />
+						PDF report
+					</a>
+				</div>
 			{/if}
 		</div>
 		<p class="mt-1 text-xs text-zinc-500">{scan.id}</p>
