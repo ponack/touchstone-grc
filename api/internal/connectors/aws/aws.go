@@ -110,6 +110,12 @@ func (Connector) Scan(ctx context.Context, cfgRaw, secretRaw json.RawMessage) (*
 	}
 	res.Resources = append(res.Resources, shRes...)
 
+	rdsRes, err := scanRDS(ctx, awsCfg, cfg.Regions)
+	if err != nil {
+		return nil, err
+	}
+	res.Resources = append(res.Resources, rdsRes...)
+
 	return res, nil
 }
 

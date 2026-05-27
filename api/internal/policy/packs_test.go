@@ -715,3 +715,98 @@ func TestCC7_1_NotApplicableWhenNoAWS(t *testing.T) {
 		t.Fatalf("status = %q, want not_applicable", d.Status)
 	}
 }
+
+// ── CC7.5 — RDS recovery procedures ─────────────────────────────────────────
+
+func rdsInstance(id string, backupDays int, deletionProtection bool) map[string]any {
+	return map[string]any{
+		"type": "aws.rds.db_instance",
+		"id":   "arn:aws:rds:us-east-1:123456789012:db:" + id,
+		"attrs": map[string]any{
+			"db_instance_identifier":  id,
+			"engine":                  "postgres",
+			"region":                  "us-east-1",
+			"backup_retention_period": backupDays,
+			"deletion_protection":     deletionProtection,
+			"storage_encrypted":       true,
+		},
+	}
+}
+
+func TestCC7_5_PassesWhenAllDBsRecoverable(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc7_5.rego",
+		map[string]any{"resources": []any{rdsInstance("prod", 14, true), rdsInstance("staging", 7, true)}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "pass" {
+		t.Fatalf("status = %q, want pass; message=%q", d.Status, d.Message)
+	}
+}
+
+func TestCC7_5_FailsWhenBackupRetentionTooLow(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc7_5.rego",
+		map[string]any{"resources": []any{rdsInstance("prod", 1, true)}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "fail" {
+		t.Fatalf("status = %q, want fail", d.Status)
+	}
+}
+
+func TestCC7_5_FailsWhenBackupsDisabled(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc7_5.rego",
+		map[string]any{"resources": []any{rdsInstance("prod", 0, true)}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "fail" {
+		t.Fatalf("status = %q, want fail", d.Status)
+	}
+}
+
+func TestCC7_5_FailsWhenNoDeletionProtection(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc7_5.rego",
+		map[string]any{"resources": []any{rdsInstance("prod", 14, false)}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "fail" {
+		t.Fatalf("status = %q, want fail", d.Status)
+	}
+}
+
+func TestCC7_5_NotApplicableWhenNoRDS(t *testing.T) {
+	// Account has AWS resources but no RDS — CC7.5 is silent rather
+	// than failing, because the recovery story for non-RDS data
+	// stores is evaluated elsewhere.
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc7_5.rego",
+		map[string]any{"resources": []any{awsMarker()}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "not_applicable" {
+		t.Fatalf("status = %q, want not_applicable", d.Status)
+	}
+}
