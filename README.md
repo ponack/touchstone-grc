@@ -33,7 +33,7 @@ Sibling project to [Crucible IAP](https://github.com/ponack/crucible-iap). Stand
 ## SOC 2 coverage today
 
 | Control | Status | AWS source |
-|---------|--------|------------|
+| ------- | ------ | ---------- |
 | CC6.1 — Logical access controls | ✅ real | IAM users / MFA / console access |
 | CC6.2 — New user access provisioning | ⏸ procedural — Phase 3 | (needs GitHub/Jira) |
 | CC6.3 — User access revocation | ✅ real | IAM access key rotation |
