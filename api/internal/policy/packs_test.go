@@ -537,3 +537,80 @@ func TestCC7_2_NotApplicableWhenNoAWSResources(t *testing.T) {
 		t.Fatalf("status = %q, want not_applicable", d.Status)
 	}
 }
+
+// ── CC6.8 + CC7.3 — GuardDuty ───────────────────────────────────────────────
+// Both controls share the same evaluation surface for v0 (GuardDuty
+// detectors enabled), so tests live together.
+
+func enabledDetector(region string) map[string]any {
+	return map[string]any{
+		"type": "aws.guardduty.detector",
+		"id":   "arn:aws:guardduty:" + region + ":detector/abcd",
+		"attrs": map[string]any{
+			"detector_id": "abcd",
+			"region":      region,
+			"status":      "ENABLED",
+		},
+	}
+}
+
+func disabledDetector(region string) map[string]any {
+	d := enabledDetector(region)
+	d["attrs"].(map[string]any)["status"] = "DISABLED"
+	return d
+}
+
+func runGuardDutyTest(t *testing.T, control string, resources []any, wantStatus string) {
+	t.Helper()
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	d, err := e.Evaluate(context.Background(), control, map[string]any{"resources": resources})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != wantStatus {
+		t.Fatalf("control=%s status=%q want=%q; message=%q", control, d.Status, wantStatus, d.Message)
+	}
+}
+
+func TestCC6_8_PassesWhenAllDetectorsEnabled(t *testing.T) {
+	runGuardDutyTest(t, "soc2_2017/cc6_8.rego",
+		[]any{enabledDetector("us-east-1"), enabledDetector("eu-west-1"), awsMarker()},
+		"pass")
+}
+
+func TestCC6_8_FailsWhenNoDetectors(t *testing.T) {
+	runGuardDutyTest(t, "soc2_2017/cc6_8.rego",
+		[]any{awsMarker()},
+		"fail")
+}
+
+func TestCC6_8_FailsWhenAnyDetectorDisabled(t *testing.T) {
+	runGuardDutyTest(t, "soc2_2017/cc6_8.rego",
+		[]any{enabledDetector("us-east-1"), disabledDetector("eu-west-1"), awsMarker()},
+		"fail")
+}
+
+func TestCC6_8_NotApplicableOnNonAWS(t *testing.T) {
+	runGuardDutyTest(t, "soc2_2017/cc6_8.rego", []any{}, "not_applicable")
+}
+
+func TestCC7_3_PassesWhenAllDetectorsEnabled(t *testing.T) {
+	runGuardDutyTest(t, "soc2_2017/cc7_3.rego",
+		[]any{enabledDetector("us-east-1"), awsMarker()},
+		"pass")
+}
+
+func TestCC7_3_FailsWhenNoDetectors(t *testing.T) {
+	runGuardDutyTest(t, "soc2_2017/cc7_3.rego",
+		[]any{awsMarker()},
+		"fail")
+}
+
+func TestCC7_3_FailsWhenAnyDetectorDisabled(t *testing.T) {
+	runGuardDutyTest(t, "soc2_2017/cc7_3.rego",
+		[]any{enabledDetector("us-east-1"), disabledDetector("eu-west-1"), awsMarker()},
+		"fail")
+}
