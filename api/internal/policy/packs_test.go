@@ -403,3 +403,137 @@ func TestCC6_6_FailsWhenRangeCoversSensitivePort(t *testing.T) {
 		t.Fatalf("status = %q, want fail", d.Status)
 	}
 }
+
+// ── CC7.2 — CloudTrail system monitoring ────────────────────────────────────
+
+func compliantTrail() map[string]any {
+	return map[string]any{
+		"type": "aws.cloudtrail.trail",
+		"id":   "arn:aws:cloudtrail:us-east-1:123456789012:trail/org-audit",
+		"attrs": map[string]any{
+			"name":                          "org-audit",
+			"home_region":                   "us-east-1",
+			"is_multi_region":               true,
+			"include_global_service_events": true,
+			"log_file_validation_enabled":   true,
+			"is_logging":                    true,
+		},
+	}
+}
+
+// Add one IAM user so aws_scanned fires (CC7.2 only applies when we
+// actually touched AWS).
+func awsMarker() map[string]any {
+	return map[string]any{
+		"type": "aws.iam.user",
+		"id":   "arn:aws:iam::123456789012:user/x",
+		"attrs": map[string]any{
+			"has_console": false,
+			"mfa_devices": []any{},
+			"access_keys": []any{},
+		},
+	}
+}
+
+func TestCC7_2_PassesWhenCompliantTrailExists(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	input := map[string]any{"resources": []any{compliantTrail(), awsMarker()}}
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc7_2.rego", input)
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "pass" {
+		t.Fatalf("status = %q, want pass; message=%q", d.Status, d.Message)
+	}
+}
+
+func TestCC7_2_FailsWhenNoTrails(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	input := map[string]any{"resources": []any{awsMarker()}}
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc7_2.rego", input)
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "fail" {
+		t.Fatalf("status = %q, want fail; message=%q", d.Status, d.Message)
+	}
+	if len(d.Failures) != 1 {
+		t.Fatalf("got %d failures, want 1", len(d.Failures))
+	}
+}
+
+func TestCC7_2_FailsWhenTrailMissingMultiRegion(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	bad := compliantTrail()
+	bad["attrs"].(map[string]any)["is_multi_region"] = false
+	input := map[string]any{"resources": []any{bad, awsMarker()}}
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc7_2.rego", input)
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "fail" {
+		t.Fatalf("status = %q, want fail", d.Status)
+	}
+}
+
+func TestCC7_2_FailsWhenTrailNotLogging(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	bad := compliantTrail()
+	bad["attrs"].(map[string]any)["is_logging"] = false
+	input := map[string]any{"resources": []any{bad, awsMarker()}}
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc7_2.rego", input)
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "fail" {
+		t.Fatalf("status = %q, want fail", d.Status)
+	}
+}
+
+// One compliant trail + several non-compliant trails should still pass —
+// the control is about whether monitoring exists, not whether every
+// trail is perfect.
+func TestCC7_2_PassesWithOneCompliantAmongMany(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	bad := compliantTrail()
+	bad["id"] = "arn:aws:cloudtrail:us-east-1:123456789012:trail/scratch"
+	bad["attrs"].(map[string]any)["is_multi_region"] = false
+	bad["attrs"].(map[string]any)["log_file_validation_enabled"] = false
+	input := map[string]any{"resources": []any{compliantTrail(), bad, awsMarker()}}
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc7_2.rego", input)
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "pass" {
+		t.Fatalf("status = %q, want pass; message=%q", d.Status, d.Message)
+	}
+}
+
+func TestCC7_2_NotApplicableWhenNoAWSResources(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc7_2.rego", map[string]any{"resources": []any{}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "not_applicable" {
+		t.Fatalf("status = %q, want not_applicable", d.Status)
+	}
+}

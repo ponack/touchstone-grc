@@ -92,6 +92,12 @@ func (Connector) Scan(ctx context.Context, cfgRaw, secretRaw json.RawMessage) (*
 	}
 	res.Resources = append(res.Resources, ec2Res...)
 
+	ctRes, err := scanCloudTrail(ctx, awsCfg, cfg.Regions)
+	if err != nil {
+		return nil, err
+	}
+	res.Resources = append(res.Resources, ctRes...)
+
 	return res, nil
 }
 
