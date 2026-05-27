@@ -98,6 +98,107 @@ func TestCC6_1_NotApplicableWhenNoIAMUsers(t *testing.T) {
 	}
 }
 
+// ── CC6.1 — Azure AD users ──────────────────────────────────────────────────
+
+func azureUser(upn string, mfaCapable, mfaRegistered bool, userType string) map[string]any {
+	return map[string]any{
+		"type": "azure.ad.user",
+		"id":   "azure-ad://tenant/users/" + upn,
+		"attrs": map[string]any{
+			"user_principal_name": upn,
+			"display_name":        upn,
+			"user_type":           userType,
+			"is_mfa_capable":      mfaCapable,
+			"is_mfa_registered":   mfaRegistered,
+		},
+	}
+}
+
+func TestCC6_1_PassesWhenAzureUsersHaveMFA(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	input := map[string]any{
+		"resources": []any{azureUser("alice@example.com", true, true, "Member")},
+	}
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc6_1.rego", input)
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "pass" {
+		t.Fatalf("status = %q, want pass; message=%q", d.Status, d.Message)
+	}
+}
+
+func TestCC6_1_FailsWhenAzureMemberLacksMFA(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	input := map[string]any{
+		"resources": []any{azureUser("bob@example.com", true, false, "Member")},
+	}
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc6_1.rego", input)
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "fail" {
+		t.Fatalf("status = %q, want fail", d.Status)
+	}
+	if len(d.Failures) != 1 {
+		t.Fatalf("got %d failures, want 1", len(d.Failures))
+	}
+}
+
+// Guests are intentionally excluded — they're invited external users
+// whose MFA is the responsibility of their home tenant.
+func TestCC6_1_DoesNotFailOnAzureGuest(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	input := map[string]any{
+		"resources": []any{azureUser("partner@vendor.com", true, false, "Guest")},
+	}
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc6_1.rego", input)
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "pass" {
+		t.Fatalf("status = %q, want pass (guests are out of scope)", d.Status)
+	}
+}
+
+// A scan with both AWS and Azure identities + one bad user in each
+// surfaces two violations.
+func TestCC6_1_MixedCloudViolations(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	awsUser := map[string]any{
+		"type": "aws.iam.user",
+		"id":   "arn:aws:iam::123456789012:user/no-mfa",
+		"attrs": map[string]any{
+			"has_console": true,
+			"mfa_devices": []any{},
+		},
+	}
+	az := azureUser("naked@example.com", true, false, "Member")
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc6_1.rego",
+		map[string]any{"resources": []any{awsUser, az}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "fail" {
+		t.Fatalf("status = %q, want fail", d.Status)
+	}
+	if len(d.Failures) != 2 {
+		t.Fatalf("got %d failures, want 2", len(d.Failures))
+	}
+}
+
 // TestCC6_3_PassesWhenAllKeysFresh confirms recent access keys do
 // not trigger the stale-key rule.
 func TestCC6_3_PassesWhenAllKeysFresh(t *testing.T) {
