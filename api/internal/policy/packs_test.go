@@ -614,3 +614,104 @@ func TestCC7_3_FailsWhenAnyDetectorDisabled(t *testing.T) {
 		[]any{enabledDetector("us-east-1"), disabledDetector("eu-west-1"), awsMarker()},
 		"fail")
 }
+
+// ── CC7.1 — Security Hub vulnerability detection ────────────────────────────
+
+func hubWithStandards(region string, standards []any) map[string]any {
+	return map[string]any{
+		"type": "aws.securityhub.hub",
+		"id":   "arn:aws:securityhub:" + region + ":123456789012:hub/default",
+		"attrs": map[string]any{
+			"region":               region,
+			"auto_enable_controls": true,
+			"subscribed_standards": standards,
+		},
+	}
+}
+
+func TestCC7_1_PassesWhenHubHasStandards(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	hub := hubWithStandards("us-east-1", []any{
+		"arn:aws:securityhub:us-east-1::standards/aws-foundational-security-best-practices/v/1.0.0",
+		"arn:aws:securityhub:us-east-1::standards/cis-aws-foundations-benchmark/v/1.2.0",
+	})
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc7_1.rego",
+		map[string]any{"resources": []any{hub, awsMarker()}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "pass" {
+		t.Fatalf("status = %q, want pass; message=%q", d.Status, d.Message)
+	}
+}
+
+func TestCC7_1_FailsWhenNoHub(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc7_1.rego",
+		map[string]any{"resources": []any{awsMarker()}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "fail" {
+		t.Fatalf("status = %q, want fail; message=%q", d.Status, d.Message)
+	}
+}
+
+func TestCC7_1_FailsWhenHubHasNoStandards(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	hub := hubWithStandards("us-east-1", []any{})
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc7_1.rego",
+		map[string]any{"resources": []any{hub, awsMarker()}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "fail" {
+		t.Fatalf("status = %q, want fail", d.Status)
+	}
+}
+
+func TestCC7_1_PassesWhenOneRegionActive(t *testing.T) {
+	// Hub enabled in us-east-1 with standards; eu-west-1 hub exists
+	// but has no standards. CC7.1 only requires ANY region to have an
+	// active hub — at least one detection pipeline beats none.
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	good := hubWithStandards("us-east-1", []any{
+		"arn:aws:securityhub:us-east-1::standards/aws-foundational-security-best-practices/v/1.0.0",
+	})
+	empty := hubWithStandards("eu-west-1", []any{})
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc7_1.rego",
+		map[string]any{"resources": []any{good, empty, awsMarker()}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "pass" {
+		t.Fatalf("status = %q, want pass", d.Status)
+	}
+}
+
+func TestCC7_1_NotApplicableWhenNoAWS(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc7_1.rego",
+		map[string]any{"resources": []any{}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "not_applicable" {
+		t.Fatalf("status = %q, want not_applicable", d.Status)
+	}
+}

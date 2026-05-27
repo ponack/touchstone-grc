@@ -104,6 +104,12 @@ func (Connector) Scan(ctx context.Context, cfgRaw, secretRaw json.RawMessage) (*
 	}
 	res.Resources = append(res.Resources, gdRes...)
 
+	shRes, err := scanSecurityHub(ctx, awsCfg, cfg.Regions)
+	if err != nil {
+		return nil, err
+	}
+	res.Resources = append(res.Resources, shRes...)
+
 	return res, nil
 }
 
