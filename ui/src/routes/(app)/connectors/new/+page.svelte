@@ -24,6 +24,10 @@
 	let azClientId = $state('');
 	let azClientSecret = $state('');
 
+	// ── GitHub ────────────────────────────────────────────────────────
+	let ghOrg = $state('');
+	let ghAccessToken = $state('');
+
 	function buildConfig(): Record<string, unknown> {
 		if (kind === 'aws') {
 			const cfg: Record<string, unknown> = {
@@ -43,14 +47,20 @@
 			}
 			return cfg;
 		}
-		// azure
-		const cfg: Record<string, unknown> = {
-			tenant_id: azTenantId.trim(),
-			client_id: azClientId.trim(),
-			client_secret: azClientSecret
+		if (kind === 'azure') {
+			const cfg: Record<string, unknown> = {
+				tenant_id: azTenantId.trim(),
+				client_id: azClientId.trim(),
+				client_secret: azClientSecret
+			};
+			if (azSubscriptionId.trim()) cfg.subscription_id = azSubscriptionId.trim();
+			return cfg;
+		}
+		// github
+		return {
+			org: ghOrg.trim(),
+			access_token: ghAccessToken
 		};
-		if (azSubscriptionId.trim()) cfg.subscription_id = azSubscriptionId.trim();
-		return cfg;
 	}
 
 	async function submit(e: SubmitEvent) {
@@ -83,6 +93,11 @@
 			value: 'azure',
 			label: 'Azure',
 			blurb: 'Service Principal (tenant + client ID + client secret).'
+		},
+		{
+			value: 'github',
+			label: 'GitHub',
+			blurb: 'Organization + Personal Access Token (read:org scope).'
 		}
 	];
 </script>
@@ -269,6 +284,37 @@
 					Encrypted at rest with TOUCHSTONE_SECRET_KEY. Required Graph permissions:
 					<code>AuditLog.Read.All</code> and <code>UserAuthenticationMethod.Read.All</code>
 					(admin-consented application permissions).
+				</p>
+			</div>
+		{:else if kind === 'github'}
+			<div>
+				<label for="gh_org" class="mb-1 block text-sm text-zinc-300">Organization</label>
+				<input
+					id="gh_org"
+					type="text"
+					required
+					placeholder="acme-co"
+					bind:value={ghOrg}
+					class="field-input"
+				/>
+			</div>
+
+			<div>
+				<label for="gh_access_token" class="mb-1 block text-sm text-zinc-300">
+					Personal Access Token
+				</label>
+				<input
+					id="gh_access_token"
+					type="password"
+					required
+					autocomplete="off"
+					placeholder="ghp_…"
+					bind:value={ghAccessToken}
+					class="field-input"
+				/>
+				<p class="mt-1 text-xs text-zinc-500">
+					Classic PAT with <code>read:org</code> scope (or a fine-grained token with organization
+					members read access). Encrypted at rest with TOUCHSTONE_SECRET_KEY.
 				</p>
 			</div>
 		{/if}
