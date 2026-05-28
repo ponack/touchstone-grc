@@ -1650,3 +1650,91 @@ func TestCC7_4_NotApplicableWhenNoLinear(t *testing.T) {
 		t.Fatalf("status = %q, want not_applicable", d.Status)
 	}
 }
+
+// ── CC7.4 — Jira incident response (parallel source) ────────────────────────
+
+func jiraSite(siteURL string, closedCount, staleCount int, attestNone bool) map[string]any {
+	return map[string]any{
+		"type": "jira.site",
+		"id":   "jira://sites/" + siteURL,
+		"attrs": map[string]any{
+			"site_url":                         "https://" + siteURL,
+			"incident_labels":                  []any{"security", "incident"},
+			"sla_window_days":                  30,
+			"attest_no_incidents":              attestNone,
+			"security_issues_closed_count":     closedCount,
+			"security_issues_open_stale_count": staleCount,
+		},
+	}
+}
+
+func TestCC7_4_PassesOnJiraClosedInWindow(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	site := jiraSite("forged.atlassian.net", 4, 0, false)
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc7_4.rego",
+		map[string]any{"resources": []any{site}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "pass" {
+		t.Fatalf("status = %q, want pass; message=%q", d.Status, d.Message)
+	}
+}
+
+func TestCC7_4_FailsOnJiraStaleOpen(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	site := jiraSite("backlogged.atlassian.net", 1, 3, false)
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc7_4.rego",
+		map[string]any{"resources": []any{site}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "fail" {
+		t.Fatalf("status = %q, want fail", d.Status)
+	}
+}
+
+func TestCC7_4_FailsWhenLinearPassesButJiraStale(t *testing.T) {
+	// Mixed setup: a clean Linear workspace but a Jira site with
+	// stale open tickets. The site's finding must surface even when
+	// the workspace alone would pass.
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	ws := linearWorkspace("forged-in-feathers", 2, 0, false)
+	site := jiraSite("backlogged.atlassian.net", 0, 1, false)
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc7_4.rego",
+		map[string]any{"resources": []any{ws, site}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "fail" {
+		t.Fatalf("status = %q, want fail", d.Status)
+	}
+}
+
+func TestCC7_4_PassesWhenBothSourcesHealthy(t *testing.T) {
+	// Both sources healthy: Linear has closed tickets, Jira has
+	// attestation. Either alone would pass; together they still pass.
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	ws := linearWorkspace("forged-in-feathers", 1, 0, false)
+	site := jiraSite("forged.atlassian.net", 0, 0, true)
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc7_4.rego",
+		map[string]any{"resources": []any{ws, site}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "pass" {
+		t.Fatalf("status = %q, want pass; message=%q", d.Status, d.Message)
+	}
+}
