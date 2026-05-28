@@ -1,17 +1,28 @@
 # SOC 2 2017 — CC6.7 Restricted data transmission / encryption.
 #
-# Rule (S3 surface): every bucket must have default encryption
-# enabled. Algorithm AES256 (SSE-S3) or aws:kms / aws:kms:dsse are
-# all acceptable — the failure mode this catches is "no encryption
-# configured at all".
+# Evaluates two surfaces:
 #
-# TLS-only enforcement (denying non-HTTPS via bucket policy
+#   AWS S3        every bucket must have default encryption enabled
+#                 (AES256, aws:kms, or aws:kms:dsse — anything but
+#                 "no encryption configured").
+#   Azure Storage every account must reject HTTP at the wire
+#                 (supportsHttpsTrafficOnly == true) and refuse
+#                 ciphers older than TLS 1.2.
+#
+# Azure auto-encrypts every storage account at rest with platform-
+# managed keys — there is no "encryption disabled" failure mode to
+# check on Azure side. CMK enforcement (encryption.key_source ==
+# "Microsoft.Keyvault") is a stricter follow-up control.
+#
+# TLS-only enforcement on S3 (denying non-HTTPS via bucket policy
 # Condition: aws:SecureTransport=false) is a future extension that
 # requires parsing the bucket policy document. Tracked separately.
 
 package soc2_2017.cc6_7
 
 import rego.v1
+
+# ── AWS S3 violations ───────────────────────────────────────────────
 
 violations contains v if {
 	some r in input.resources
@@ -24,15 +35,54 @@ violations contains v if {
 	}
 }
 
+# ── Azure Storage violations ────────────────────────────────────────
+
+violations contains v if {
+	some r in input.resources
+	r.type == "azure.storage.account"
+	r.attrs.enable_https_traffic_only != true
+	v := {
+		"resource_type": r.type,
+		"resource_id":   r.id,
+		"reason":        "supportsHttpsTrafficOnly is not enabled — account accepts HTTP",
+	}
+}
+
+# Anything below TLS 1.2 is a fail. Azure currently allows
+# configuring TLS1_0, TLS1_1, TLS1_2, TLS1_3. Missing string is
+# treated as the platform default (TLS1_2) so it passes silently.
+violations contains v if {
+	some r in input.resources
+	r.type == "azure.storage.account"
+	r.attrs.minimum_tls_version != ""
+	not tls_version_ok(r.attrs.minimum_tls_version)
+	v := {
+		"resource_type": r.type,
+		"resource_id":   r.id,
+		"reason":        sprintf("minimum_tls_version is %q — must be TLS1_2 or higher", [r.attrs.minimum_tls_version]),
+	}
+}
+
+tls_version_ok(v) if v == "TLS1_2"
+tls_version_ok(v) if v == "TLS1_3"
+
+# ── Applicability ───────────────────────────────────────────────────
+
 applicable if {
 	some r in input.resources
 	r.type == "aws.s3.bucket"
 }
+applicable if {
+	some r in input.resources
+	r.type == "azure.storage.account"
+}
 
 default applicable := false
 
+# ── Outputs ─────────────────────────────────────────────────────────
+
 default status := "not_applicable"
-default message := "No S3 buckets in scan input."
+default message := "No storage resources in scan input."
 default failures := []
 
 failures := [v | some v in violations]
@@ -47,12 +97,12 @@ status := "pass" if {
 	count(violations) == 0
 }
 
-message := sprintf("%d S3 bucket(s) lack default encryption.", [count(violations)]) if {
+message := sprintf("%d encryption / transit finding(s) across configured storage surfaces.", [count(violations)]) if {
 	applicable
 	count(violations) > 0
 }
 
-message := "All S3 buckets have default encryption enabled." if {
+message := "All storage resources enforce encryption + TLS." if {
 	applicable
 	count(violations) == 0
 }

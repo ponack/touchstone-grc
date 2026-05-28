@@ -104,6 +104,27 @@ sg_all_protocols_violations contains v if {
 	}
 }
 
+# ── Azure Storage Account violations ────────────────────────────────
+
+# allow_blob_public_access == true means a container's owner can flip
+# its access level to "Blob" or "Container" and serve to the world.
+# CC6.6 wants that gate held shut at the account level.
+azure_blob_public_violations contains v if {
+	some r in input.resources
+	r.type == "azure.storage.account"
+	r.attrs.allow_blob_public_access == true
+	v := {
+		"resource_type": r.type,
+		"resource_id":   r.id,
+		"reason":        "storage account permits public blob access (allowBlobPublicAccess is true)",
+	}
+}
+
+# Public network access controls the account-level firewall. "Disabled"
+# is the strict choice. "Enabled" and "SecuredByPerimeter" are accepted
+# for now (real-world buckets often legitimately face the internet);
+# in a stricter v1 we may flag these too.
+
 # ── Combined finding set ────────────────────────────────────────────
 
 violations contains v if {
@@ -118,6 +139,9 @@ violations contains v if {
 violations contains v if {
 	some v in sg_all_protocols_violations
 }
+violations contains v if {
+	some v in azure_blob_public_violations
+}
 
 applicable if {
 	some r in input.resources
@@ -127,11 +151,15 @@ applicable if {
 	some r in input.resources
 	r.type == "aws.ec2.security_group"
 }
+applicable if {
+	some r in input.resources
+	r.type == "azure.storage.account"
+}
 
 default applicable := false
 
 default status := "not_applicable"
-default message := "No S3 buckets or security groups in scan input."
+default message := "No network-relevant resources in scan input."
 default failures := []
 
 failures := [v | some v in violations]
@@ -146,12 +174,12 @@ status := "pass" if {
 	count(violations) == 0
 }
 
-message := sprintf("%d network access finding(s) across S3 and EC2.", [count(violations)]) if {
+message := sprintf("%d network access finding(s) across AWS + Azure surfaces.", [count(violations)]) if {
 	applicable
 	count(violations) > 0
 }
 
-message := "All S3 buckets and security groups restrict public access." if {
+message := "All network resources restrict public access." if {
 	applicable
 	count(violations) == 0
 }

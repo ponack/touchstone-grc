@@ -103,6 +103,12 @@ func (Connector) Scan(ctx context.Context, cfgRaw, secretRaw json.RawMessage) (*
 	}
 	res.Resources = append(res.Resources, adRes...)
 
+	storageRes, err := scanStorage(ctx, cfg, sec)
+	if err != nil {
+		return nil, err
+	}
+	res.Resources = append(res.Resources, storageRes...)
+
 	return res, nil
 }
 
