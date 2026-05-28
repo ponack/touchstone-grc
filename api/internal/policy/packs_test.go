@@ -409,6 +409,111 @@ func TestCC6_7_FailsWhenEncryptionDisabled(t *testing.T) {
 	}
 }
 
+// ── Azure Storage — CC6.6 + CC6.7 ───────────────────────────────────────────
+
+func azureStorage(name string, opts map[string]any) map[string]any {
+	attrs := map[string]any{
+		"name":                      name,
+		"subscription_id":           "00000000-0000-0000-0000-000000000000",
+		"location":                  "eastus",
+		"kind":                      "StorageV2",
+		"sku":                       "Standard_LRS",
+		"allow_blob_public_access":  false,
+		"enable_https_traffic_only": true,
+		"minimum_tls_version":       "TLS1_2",
+		"public_network_access":     "Enabled",
+		"encryption_key_source":     "Microsoft.Storage",
+	}
+	for k, v := range opts {
+		attrs[k] = v
+	}
+	return map[string]any{
+		"type":  "azure.storage.account",
+		"id":    "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.Storage/storageAccounts/" + name,
+		"attrs": attrs,
+	}
+}
+
+func TestCC6_6_FailsOnAzurePublicBlobAccess(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	sa := azureStorage("leaky", map[string]any{"allow_blob_public_access": true})
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc6_6.rego",
+		map[string]any{"resources": []any{sa}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "fail" {
+		t.Fatalf("status = %q, want fail", d.Status)
+	}
+}
+
+func TestCC6_6_PassesOnLockedDownAzureStorage(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	sa := azureStorage("locked", nil)
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc6_6.rego",
+		map[string]any{"resources": []any{sa}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "pass" {
+		t.Fatalf("status = %q, want pass; message=%q", d.Status, d.Message)
+	}
+}
+
+func TestCC6_7_FailsOnAzureHTTPAllowed(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	sa := azureStorage("plaintext", map[string]any{"enable_https_traffic_only": false})
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc6_7.rego",
+		map[string]any{"resources": []any{sa}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "fail" {
+		t.Fatalf("status = %q, want fail", d.Status)
+	}
+}
+
+func TestCC6_7_FailsOnAzureOldTLS(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	sa := azureStorage("old-tls", map[string]any{"minimum_tls_version": "TLS1_0"})
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc6_7.rego",
+		map[string]any{"resources": []any{sa}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "fail" {
+		t.Fatalf("status = %q, want fail", d.Status)
+	}
+}
+
+func TestCC6_7_PassesOnEncryptedAzureStorage(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	sa := azureStorage("good", nil)
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc6_7.rego",
+		map[string]any{"resources": []any{sa}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "pass" {
+		t.Fatalf("status = %q, want pass; message=%q", d.Status, d.Message)
+	}
+}
+
 // ── CC6.6 — EC2 Security Groups ─────────────────────────────────────────────
 
 func sgResource(id string, rules []any) map[string]any {
