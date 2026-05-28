@@ -125,6 +125,64 @@ azure_blob_public_violations contains v if {
 # for now (real-world buckets often legitimately face the internet);
 # in a stricter v1 we may flag these too.
 
+# ── Azure Network Security Group violations ─────────────────────────
+
+# A source prefix that represents "anywhere on the public internet"
+# in Azure's vocabulary. Azure uses "*" and the "Internet" service
+# tag in addition to standard CIDR notation.
+nsg_world_open(rule) if {
+	some src in rule.source_prefixes
+	src == "*"
+}
+nsg_world_open(rule) if {
+	some src in rule.source_prefixes
+	src == "Internet"
+}
+nsg_world_open(rule) if {
+	some src in rule.source_prefixes
+	src == "0.0.0.0/0"
+}
+nsg_world_open(rule) if {
+	some src in rule.source_prefixes
+	src == "::/0"
+}
+
+nsg_hits_sensitive_port(rule) if {
+	some p in sensitive_ports
+	rule.from_port <= p
+	rule.to_port >= p
+}
+
+# Inbound rule (the scanner only emits Allow + Inbound rows) that's
+# world-open and covers a sensitive admin/database port.
+azure_nsg_sensitive_port_violations contains v if {
+	some r in input.resources
+	r.type == "azure.network.nsg"
+	some rule in r.attrs.inbound_rules
+	nsg_world_open(rule)
+	nsg_hits_sensitive_port(rule)
+	v := {
+		"resource_type": r.type,
+		"resource_id":   r.id,
+		"reason":        sprintf("inbound rule %q exposes ports %d-%d to the public internet, covers sensitive ports", [rule.name, rule.from_port, rule.to_port]),
+	}
+}
+
+# Inbound rule with protocol "*" (all protocols) from anywhere is
+# always wrong.
+azure_nsg_all_protocols_violations contains v if {
+	some r in input.resources
+	r.type == "azure.network.nsg"
+	some rule in r.attrs.inbound_rules
+	nsg_world_open(rule)
+	rule.protocol == "*"
+	v := {
+		"resource_type": r.type,
+		"resource_id":   r.id,
+		"reason":        sprintf("inbound rule %q allows all protocols from the public internet", [rule.name]),
+	}
+}
+
 # ── Combined finding set ────────────────────────────────────────────
 
 violations contains v if {
@@ -142,6 +200,12 @@ violations contains v if {
 violations contains v if {
 	some v in azure_blob_public_violations
 }
+violations contains v if {
+	some v in azure_nsg_sensitive_port_violations
+}
+violations contains v if {
+	some v in azure_nsg_all_protocols_violations
+}
 
 applicable if {
 	some r in input.resources
@@ -154,6 +218,10 @@ applicable if {
 applicable if {
 	some r in input.resources
 	r.type == "azure.storage.account"
+}
+applicable if {
+	some r in input.resources
+	r.type == "azure.network.nsg"
 }
 
 default applicable := false
