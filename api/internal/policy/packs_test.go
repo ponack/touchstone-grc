@@ -1470,3 +1470,83 @@ func TestCC7_5_MixedFailsOnAzureGap(t *testing.T) {
 		t.Fatalf("status = %q, want fail", d.Status)
 	}
 }
+
+// ── CC6.2 — GitHub MFA enforcement ──────────────────────────────────────────
+
+func githubOrg(login string, requires2FA bool, membersWithout []any) map[string]any {
+	return map[string]any{
+		"type": "github.org",
+		"id":   "github://orgs/" + login,
+		"attrs": map[string]any{
+			"login":                          login,
+			"two_factor_requirement_enabled": requires2FA,
+			"members_without_2fa":            membersWithout,
+			"members_without_2fa_count":      len(membersWithout),
+		},
+	}
+}
+
+func TestCC6_2_PassesWhenOrgRequires2FAAndAllMembersHaveIt(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	org := githubOrg("forged-in-feathers", true, []any{})
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc6_2.rego",
+		map[string]any{"resources": []any{org}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "pass" {
+		t.Fatalf("status = %q, want pass; message=%q", d.Status, d.Message)
+	}
+}
+
+func TestCC6_2_FailsWhenOrgDoesNotRequire2FA(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	org := githubOrg("loose-org", false, []any{})
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc6_2.rego",
+		map[string]any{"resources": []any{org}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "fail" {
+		t.Fatalf("status = %q, want fail", d.Status)
+	}
+}
+
+func TestCC6_2_FailsWhenMembersWithout2FAExist(t *testing.T) {
+	// Org has 2FA-required policy but stale members slipped through —
+	// e.g. policy enabled after invites went out.
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	org := githubOrg("mixed-org", true, []any{"alice", "bob"})
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc6_2.rego",
+		map[string]any{"resources": []any{org}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "fail" {
+		t.Fatalf("status = %q, want fail", d.Status)
+	}
+}
+
+func TestCC6_2_NotApplicableWhenNoGitHub(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc6_2.rego",
+		map[string]any{"resources": []any{awsMarker()}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "not_applicable" {
+		t.Fatalf("status = %q, want not_applicable", d.Status)
+	}
+}

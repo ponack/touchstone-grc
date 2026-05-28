@@ -15,8 +15,9 @@ import (
 type Kind string
 
 const (
-	KindAWS   Kind = "aws"
-	KindAzure Kind = "azure"
+	KindAWS    Kind = "aws"
+	KindAzure  Kind = "azure"
+	KindGitHub Kind = "github"
 )
 
 // Resource is one row in the normalized output of a connector scan.

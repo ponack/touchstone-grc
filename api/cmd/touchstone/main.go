@@ -16,6 +16,7 @@ import (
 	"github.com/ponack/touchstone/internal/connectors"
 	awsconn "github.com/ponack/touchstone/internal/connectors/aws"
 	azureconn "github.com/ponack/touchstone/internal/connectors/azure"
+	githubconn "github.com/ponack/touchstone/internal/connectors/github"
 	"github.com/ponack/touchstone/internal/db"
 	"github.com/ponack/touchstone/internal/frameworks/packs"
 	"github.com/ponack/touchstone/internal/policy"
@@ -96,6 +97,7 @@ func workerCmd() *cobra.Command {
 			registry := connectors.NewRegistry()
 			registry.Register(awsconn.New())
 			registry.Register(azureconn.New())
+			registry.Register(githubconn.New())
 
 			engine, err := policy.NewEngine(packs.FS)
 			if err != nil {
