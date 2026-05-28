@@ -28,6 +28,13 @@
 	let ghOrg = $state('');
 	let ghAccessToken = $state('');
 
+	// ── Linear ────────────────────────────────────────────────────────
+	let linWorkspaceName = $state('');
+	let linIncidentLabels = $state('security, incident');
+	let linSlaWindowDays = $state(30);
+	let linAttestNoIncidents = $state(false);
+	let linApiKey = $state('');
+
 	function buildConfig(): Record<string, unknown> {
 		if (kind === 'aws') {
 			const cfg: Record<string, unknown> = {
@@ -56,10 +63,22 @@
 			if (azSubscriptionId.trim()) cfg.subscription_id = azSubscriptionId.trim();
 			return cfg;
 		}
-		// github
+		if (kind === 'github') {
+			return {
+				org: ghOrg.trim(),
+				access_token: ghAccessToken
+			};
+		}
+		// linear
 		return {
-			org: ghOrg.trim(),
-			access_token: ghAccessToken
+			workspace_name: linWorkspaceName.trim(),
+			incident_labels: linIncidentLabels
+				.split(',')
+				.map((s) => s.trim())
+				.filter((s) => s.length > 0),
+			sla_window_days: linSlaWindowDays,
+			attest_no_incidents: linAttestNoIncidents,
+			api_key: linApiKey
 		};
 	}
 
@@ -98,6 +117,11 @@
 			value: 'github',
 			label: 'GitHub',
 			blurb: 'Organization + Personal Access Token (read:org scope).'
+		},
+		{
+			value: 'linear',
+			label: 'Linear',
+			blurb: 'Workspace + Personal API Key. Tracks incident-labelled tickets for CC7.4.'
 		}
 	];
 </script>
@@ -315,6 +339,89 @@
 				<p class="mt-1 text-xs text-zinc-500">
 					Classic PAT with <code>read:org</code> scope (or a fine-grained token with organization
 					members read access). Encrypted at rest with TOUCHSTONE_SECRET_KEY.
+				</p>
+			</div>
+		{:else if kind === 'linear'}
+			<div>
+				<label for="lin_workspace_name" class="mb-1 block text-sm text-zinc-300">
+					Workspace name
+				</label>
+				<input
+					id="lin_workspace_name"
+					type="text"
+					required
+					placeholder="Forged in Feathers"
+					bind:value={linWorkspaceName}
+					class="field-input"
+				/>
+				<p class="mt-1 text-xs text-zinc-500">
+					Display name only — Linear API keys are workspace-scoped, so one connector covers one
+					workspace.
+				</p>
+			</div>
+
+			<div>
+				<label for="lin_incident_labels" class="mb-1 block text-sm text-zinc-300">
+					Incident labels <span class="text-xs text-zinc-500">(comma-separated)</span>
+				</label>
+				<input
+					id="lin_incident_labels"
+					type="text"
+					required
+					bind:value={linIncidentLabels}
+					class="field-input"
+				/>
+				<p class="mt-1 text-xs text-zinc-500">
+					Ticket labels that mark security incidents. CC7.4 evaluates these.
+				</p>
+			</div>
+
+			<div>
+				<label for="lin_sla_window_days" class="mb-1 block text-sm text-zinc-300">
+					SLA window (days)
+				</label>
+				<input
+					id="lin_sla_window_days"
+					type="number"
+					min="1"
+					max="365"
+					required
+					bind:value={linSlaWindowDays}
+					class="field-input"
+				/>
+				<p class="mt-1 text-xs text-zinc-500">
+					Closed-in-window tickets prove the workflow runs; tickets open past this window fail
+					CC7.4.
+				</p>
+			</div>
+
+			<label class="flex items-start gap-2">
+				<input type="checkbox" bind:checked={linAttestNoIncidents} class="mt-1" />
+				<span>
+					<span class="block text-sm text-zinc-100">Attest: no security incidents this window</span>
+					<span class="block text-xs text-zinc-500">
+						Use only when the window genuinely had zero incidents. Lets CC7.4 pass without any
+						closed tickets — but you're on the record.
+					</span>
+				</span>
+			</label>
+
+			<div>
+				<label for="lin_api_key" class="mb-1 block text-sm text-zinc-300">
+					Personal API key
+				</label>
+				<input
+					id="lin_api_key"
+					type="password"
+					required
+					autocomplete="off"
+					placeholder="lin_api_…"
+					bind:value={linApiKey}
+					class="field-input"
+				/>
+				<p class="mt-1 text-xs text-zinc-500">
+					Create at Linear → Settings → Account → API. Encrypted at rest with
+					TOUCHSTONE_SECRET_KEY.
 				</p>
 			</div>
 		{/if}
