@@ -268,6 +268,103 @@ func TestCC6_3_FailsWhenKeyOlderThanYear(t *testing.T) {
 	}
 }
 
+// ── CC6.3 — Azure AD application credential rotation ────────────────────────
+
+func azureApp(name string, passCreds, keyCreds []any) map[string]any {
+	return map[string]any{
+		"type": "azure.ad.application",
+		"id":   "azure-ad://tenant/applications/" + name,
+		"attrs": map[string]any{
+			"app_id":               name + "-id",
+			"display_name":         name,
+			"password_credentials": passCreds,
+			"key_credentials":      keyCreds,
+		},
+	}
+}
+
+func azureCred(displayName string, startISO, endISO string) map[string]any {
+	return map[string]any{
+		"key_id":       displayName,
+		"display_name": displayName,
+		"start_date":   startISO,
+		"end_date":     endISO,
+	}
+}
+
+func TestCC6_3_PassesOnRecentAzureSecret(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	// Secret issued recently, still valid → not stale.
+	recent := azureCred("rotated-secret", "2026-05-01T00:00:00Z", "2027-05-01T00:00:00Z")
+	app := azureApp("prod-svc", []any{recent}, []any{})
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc6_3.rego",
+		map[string]any{"resources": []any{app}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "pass" {
+		t.Fatalf("status = %q, want pass; message=%q", d.Status, d.Message)
+	}
+}
+
+func TestCC6_3_FailsOnStaleAzureSecret(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	// Secret issued in 2020, expires 2030 — currently valid AND
+	// older than 365 days.
+	stale := azureCred("legacy-secret", "2020-01-01T00:00:00Z", "2030-01-01T00:00:00Z")
+	app := azureApp("legacy-svc", []any{stale}, []any{})
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc6_3.rego",
+		map[string]any{"resources": []any{app}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "fail" {
+		t.Fatalf("status = %q, want fail", d.Status)
+	}
+}
+
+func TestCC6_3_FailsOnStaleAzureCertificate(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	stale := azureCred("legacy-cert", "2020-01-01T00:00:00Z", "2030-01-01T00:00:00Z")
+	app := azureApp("legacy-svc", []any{}, []any{stale})
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc6_3.rego",
+		map[string]any{"resources": []any{app}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "fail" {
+		t.Fatalf("status = %q, want fail", d.Status)
+	}
+}
+
+// Expired credentials are ignored — they no longer grant access so
+// they're not a rotation finding.
+func TestCC6_3_IgnoresExpiredAzureCredential(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	expired := azureCred("old-and-dead", "2020-01-01T00:00:00Z", "2021-01-01T00:00:00Z")
+	app := azureApp("legacy-svc", []any{expired}, []any{})
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc6_3.rego",
+		map[string]any{"resources": []any{app}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "pass" {
+		t.Fatalf("status = %q, want pass (expired credentials are not findings)", d.Status)
+	}
+}
+
 // ── CC6.6 — S3 public access controls ───────────────────────────────────────
 
 func lockedBucket() map[string]any {
