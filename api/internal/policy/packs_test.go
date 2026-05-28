@@ -1130,6 +1130,88 @@ func TestCC7_3_FailsWhenAnyDetectorDisabled(t *testing.T) {
 		"fail")
 }
 
+// ── CC6.8 + CC7.3 + CC7.1 — Microsoft Defender for Cloud ────────────────────
+
+func defenderPlan(name, tier string) map[string]any {
+	return map[string]any{
+		"type": "azure.defender.pricing",
+		"id":   "/subscriptions/sub/providers/Microsoft.Security/pricings/" + name,
+		"attrs": map[string]any{
+			"plan_name":       name,
+			"subscription_id": "sub",
+			"pricing_tier":    tier,
+			"enabled":         tier == "Standard",
+		},
+	}
+}
+
+func runDefenderTest(t *testing.T, control string, resources []any, wantStatus string) {
+	t.Helper()
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	d, err := e.Evaluate(context.Background(), control, map[string]any{"resources": resources})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != wantStatus {
+		t.Fatalf("control=%s status=%q want=%q; message=%q", control, d.Status, wantStatus, d.Message)
+	}
+}
+
+func TestCC6_8_PassesWhenDefenderEnabled(t *testing.T) {
+	runDefenderTest(t, "soc2_2017/cc6_8.rego",
+		[]any{defenderPlan("VirtualMachines", "Standard"), azureMarker()},
+		"pass")
+}
+
+func TestCC6_8_FailsWhenAllDefenderFree(t *testing.T) {
+	runDefenderTest(t, "soc2_2017/cc6_8.rego",
+		[]any{defenderPlan("VirtualMachines", "Free"), defenderPlan("StorageAccounts", "Free"), azureMarker()},
+		"fail")
+}
+
+func TestCC6_8_FailsWhenAzureScannedButNoDefender(t *testing.T) {
+	runDefenderTest(t, "soc2_2017/cc6_8.rego",
+		[]any{azureMarker()},
+		"fail")
+}
+
+func TestCC7_3_PassesWhenDefenderEnabled(t *testing.T) {
+	runDefenderTest(t, "soc2_2017/cc7_3.rego",
+		[]any{defenderPlan("VirtualMachines", "Standard"), azureMarker()},
+		"pass")
+}
+
+func TestCC7_3_FailsWhenAllDefenderFree(t *testing.T) {
+	runDefenderTest(t, "soc2_2017/cc7_3.rego",
+		[]any{defenderPlan("VirtualMachines", "Free"), azureMarker()},
+		"fail")
+}
+
+func TestCC7_1_PassesWhenDefenderEnabled(t *testing.T) {
+	runDefenderTest(t, "soc2_2017/cc7_1.rego",
+		[]any{defenderPlan("VirtualMachines", "Standard"), azureMarker()},
+		"pass")
+}
+
+func TestCC7_1_FailsWhenAllDefenderFree(t *testing.T) {
+	runDefenderTest(t, "soc2_2017/cc7_1.rego",
+		[]any{defenderPlan("VirtualMachines", "Free"), azureMarker()},
+		"fail")
+}
+
+// Mixed-cloud: AWS Security Hub active but Azure Defender all Free → fail.
+func TestCC7_1_MixedFailsOnAzureGap(t *testing.T) {
+	awsHub := hubWithStandards("us-east-1", []any{
+		"arn:aws:securityhub:us-east-1::standards/cis-aws-foundations-benchmark/v/1.2.0",
+	})
+	runDefenderTest(t, "soc2_2017/cc7_1.rego",
+		[]any{awsHub, awsMarker(), defenderPlan("VirtualMachines", "Free"), azureMarker()},
+		"fail")
+}
+
 // ── CC7.1 — Security Hub vulnerability detection ────────────────────────────
 
 func hubWithStandards(region string, standards []any) map[string]any {

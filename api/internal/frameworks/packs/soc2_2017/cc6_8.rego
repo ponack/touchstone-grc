@@ -1,21 +1,21 @@
 # SOC 2 2017 — CC6.8 Malicious software prevention.
 #
-# Rule (GuardDuty surface): the account must have GuardDuty
-# detectors enabled. Findings indicate active threat detection /
-# anomaly analysis, which the auditor accepts as evidence that
-# malicious software / compromised credentials would be surfaced.
+# Evaluates two cloud-native threat-detection surfaces:
 #
-# Future extensions (AWS Inspector for vuln scanning, anti-malware
-# enforced via SSM, third-party EDR) will broaden this control.
-# This v0 evaluation captures the highest-signal AWS-native source.
+#   AWS GuardDuty                      Detector status per region
+#   Microsoft Defender for Cloud       At least one plan in Standard
+#                                      pricing tier (active) in the
+#                                      subscription
 #
-# Applicability: any aws.* resource in scan input means we audited
-# AWS, so CC6.8 applies. Absence of detectors when AWS was scanned
-# is a real failure, not "not_applicable".
+# Each cloud is evaluated independently. Future extensions (AWS
+# Inspector, Defender for Servers MDE configuration, SSM-deployed
+# anti-malware, third-party EDR) will broaden this control.
 
 package soc2_2017.cc6_8
 
 import rego.v1
+
+# ── AWS GuardDuty ───────────────────────────────────────────────────
 
 detectors := [r | some r in input.resources; r.type == "aws.guardduty.detector"]
 
@@ -25,9 +25,6 @@ aws_scanned if {
 }
 
 default aws_scanned := false
-default applicable := false
-
-applicable if aws_scanned
 
 enabled_detector(d) if {
 	d.attrs.status == "ENABLED"
@@ -38,11 +35,13 @@ has_enabled_detector if {
 	enabled_detector(d)
 }
 
-# ── Violations ──────────────────────────────────────────────────────
+any_disabled_detector if {
+	some d in detectors
+	not enabled_detector(d)
+}
 
-# No detectors at all.
 violations contains v if {
-	applicable
+	aws_scanned
 	count(detectors) == 0
 	v := {
 		"resource_type": "aws.guardduty",
@@ -51,11 +50,8 @@ violations contains v if {
 	}
 }
 
-# Detectors exist but at least one is not ENABLED. Surfaces each
-# disabled detector individually so the operator sees where coverage
-# is missing.
 violations contains v if {
-	applicable
+	aws_scanned
 	some d in detectors
 	not enabled_detector(d)
 	v := {
@@ -65,53 +61,72 @@ violations contains v if {
 	}
 }
 
-# ── Outputs ─────────────────────────────────────────────────────────
+# ── Microsoft Defender for Cloud ────────────────────────────────────
+
+defender_plans := [r | some r in input.resources; r.type == "azure.defender.pricing"]
+
+azure_scanned if {
+	some r in input.resources
+	startswith(r.type, "azure.")
+}
+
+default azure_scanned := false
+
+has_enabled_defender if {
+	some p in defender_plans
+	p.attrs.enabled == true
+}
+
+violations contains v if {
+	azure_scanned
+	count(defender_plans) == 0
+	v := {
+		"resource_type": "azure.defender",
+		"resource_id":   "(subscription)",
+		"reason":        "no Microsoft Defender for Cloud pricing plans were returned for this subscription",
+	}
+}
+
+violations contains v if {
+	azure_scanned
+	count(defender_plans) > 0
+	not has_enabled_defender
+	v := {
+		"resource_type": "azure.defender",
+		"resource_id":   "(subscription)",
+		"reason":        "all Defender for Cloud plans are on the Free tier — no active threat detection",
+	}
+}
+
+# ── Applicability + outputs ─────────────────────────────────────────
+
+default applicable := false
+
+applicable if aws_scanned
+applicable if azure_scanned
 
 default status := "not_applicable"
-default message := "No AWS resources in scan input."
+default message := "No cloud resources in scan input."
 default failures := []
 
 failures := [v | some v in violations]
 
-# Fail when no detectors exist at all, OR when any existing detector
-# is disabled. We do not require every region; that strictness is
-# tracked separately. Detectors that ARE enabled count as evidence
-# of an active program.
 status := "fail" if {
 	applicable
-	count(detectors) == 0
-}
-
-status := "fail" if {
-	applicable
-	some d in detectors
-	not enabled_detector(d)
+	count(violations) > 0
 }
 
 status := "pass" if {
 	applicable
-	has_enabled_detector
-	not any_disabled_detector
+	count(violations) == 0
 }
 
-any_disabled_detector if {
-	some d in detectors
-	not enabled_detector(d)
-}
-
-message := "No GuardDuty detectors are configured for this account." if {
+message := sprintf("%d malicious-software-prevention finding(s) across configured clouds.", [count(violations)]) if {
 	applicable
-	count(detectors) == 0
+	count(violations) > 0
 }
 
-message := sprintf("%d GuardDuty detector(s) are not in ENABLED state.", [count([d | some d in detectors; not enabled_detector(d)])]) if {
+message := "Every audited cloud has active threat detection." if {
 	applicable
-	count(detectors) > 0
-	any_disabled_detector
-}
-
-message := "All GuardDuty detectors are ENABLED." if {
-	applicable
-	has_enabled_detector
-	not any_disabled_detector
+	count(violations) == 0
 }

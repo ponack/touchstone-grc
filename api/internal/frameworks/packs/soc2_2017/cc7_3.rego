@@ -1,22 +1,21 @@
 # SOC 2 2017 — CC7.3 Security event analysis.
 #
-# Rule (GuardDuty surface): security events are analyzed when there
-# is a service collecting + analyzing them. GuardDuty performs that
-# analysis continuously, so an ENABLED detector is the strongest
-# AWS-native signal.
+# Evaluates the same two surfaces as CC6.8 because in both clouds the
+# threat-detection service IS the analysis pipeline:
 #
-# CC7.3 also expects human review of findings, which is procedural
-# evidence beyond what an automated scan can capture. The control
-# pack will gain a procedural-evidence connector in Phase 3+ for
-# that part; for v0 we evaluate the technical precondition.
+#   AWS GuardDuty                 ENABLED detector = active analysis
+#   Microsoft Defender for Cloud  At least one Standard-tier plan
 #
-# Applicability: same shape as CC6.8 — any aws.* resource means we
-# audited AWS, absence of detectors when AWS was scanned is a real
-# failure.
+# CC7.3 also expects human review of findings — procedural evidence
+# beyond what an automated scan can capture. The control pack will
+# gain a procedural-evidence connector later; for v0 the technical
+# precondition is what we evaluate.
 
 package soc2_2017.cc7_3
 
 import rego.v1
+
+# ── AWS GuardDuty ───────────────────────────────────────────────────
 
 detectors := [r | some r in input.resources; r.type == "aws.guardduty.detector"]
 
@@ -26,9 +25,6 @@ aws_scanned if {
 }
 
 default aws_scanned := false
-default applicable := false
-
-applicable if aws_scanned
 
 enabled_detector(d) if {
 	d.attrs.status == "ENABLED"
@@ -44,10 +40,8 @@ any_disabled_detector if {
 	not enabled_detector(d)
 }
 
-# ── Violations ──────────────────────────────────────────────────────
-
 violations contains v if {
-	applicable
+	aws_scanned
 	count(detectors) == 0
 	v := {
 		"resource_type": "aws.guardduty",
@@ -57,7 +51,7 @@ violations contains v if {
 }
 
 violations contains v if {
-	applicable
+	aws_scanned
 	some d in detectors
 	not enabled_detector(d)
 	v := {
@@ -67,43 +61,72 @@ violations contains v if {
 	}
 }
 
-# ── Outputs ─────────────────────────────────────────────────────────
+# ── Microsoft Defender for Cloud ────────────────────────────────────
+
+defender_plans := [r | some r in input.resources; r.type == "azure.defender.pricing"]
+
+azure_scanned if {
+	some r in input.resources
+	startswith(r.type, "azure.")
+}
+
+default azure_scanned := false
+
+has_enabled_defender if {
+	some p in defender_plans
+	p.attrs.enabled == true
+}
+
+violations contains v if {
+	azure_scanned
+	count(defender_plans) == 0
+	v := {
+		"resource_type": "azure.defender",
+		"resource_id":   "(subscription)",
+		"reason":        "no Microsoft Defender for Cloud pricing plans returned for this subscription",
+	}
+}
+
+violations contains v if {
+	azure_scanned
+	count(defender_plans) > 0
+	not has_enabled_defender
+	v := {
+		"resource_type": "azure.defender",
+		"resource_id":   "(subscription)",
+		"reason":        "all Defender for Cloud plans are on the Free tier — no active security event analysis",
+	}
+}
+
+# ── Applicability + outputs ─────────────────────────────────────────
+
+default applicable := false
+
+applicable if aws_scanned
+applicable if azure_scanned
 
 default status := "not_applicable"
-default message := "No AWS resources in scan input."
+default message := "No cloud resources in scan input."
 default failures := []
 
 failures := [v | some v in violations]
 
 status := "fail" if {
 	applicable
-	count(detectors) == 0
-}
-
-status := "fail" if {
-	applicable
-	any_disabled_detector
+	count(violations) > 0
 }
 
 status := "pass" if {
 	applicable
-	has_enabled_detector
-	not any_disabled_detector
+	count(violations) == 0
 }
 
-message := "No GuardDuty detectors — automated security event analysis is not configured." if {
+message := sprintf("%d security-event-analysis finding(s) across configured clouds.", [count(violations)]) if {
 	applicable
-	count(detectors) == 0
+	count(violations) > 0
 }
 
-message := sprintf("%d GuardDuty detector(s) not in ENABLED state — analysis pipeline gap.", [count([d | some d in detectors; not enabled_detector(d)])]) if {
+message := "Every audited cloud is actively analyzing security events." if {
 	applicable
-	count(detectors) > 0
-	any_disabled_detector
-}
-
-message := "GuardDuty is actively analyzing security events." if {
-	applicable
-	has_enabled_detector
-	not any_disabled_detector
+	count(violations) == 0
 }
