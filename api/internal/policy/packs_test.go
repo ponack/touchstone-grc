@@ -941,6 +941,118 @@ func TestCC7_2_NotApplicableWhenNoAWSResources(t *testing.T) {
 	}
 }
 
+// ── CC7.2 — Azure Activity Log diagnostic settings ──────────────────────────
+
+func azureMonitorSetting(name string, opts map[string]any) map[string]any {
+	cats := map[string]any{"Administrative": true, "Security": true}
+	attrs := map[string]any{
+		"name":               name,
+		"subscription_id":    "sub",
+		"has_workspace_sink": true,
+		"has_storage_sink":   false,
+		"has_eventhub_sink":  false,
+		"categories":         cats,
+	}
+	for k, v := range opts {
+		attrs[k] = v
+	}
+	return map[string]any{
+		"type":  "azure.monitor.activity_log_setting",
+		"id":    "/subscriptions/sub/providers/microsoft.insights/diagnosticSettings/" + name,
+		"attrs": attrs,
+	}
+}
+
+// awsMarker (defined later in the CC7.2 tests) provides an aws.* resource.
+// For Azure we use an Azure AD user to satisfy azure_scanned.
+func azureMarker() map[string]any {
+	return azureUser("anyone@example.com", true, true, "Member")
+}
+
+func TestCC7_2_PassesWhenAzureSettingForwardsToWorkspace(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	s := azureMonitorSetting("to-loganalytics", nil)
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc7_2.rego",
+		map[string]any{"resources": []any{s, azureMarker()}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "pass" {
+		t.Fatalf("status = %q, want pass; message=%q", d.Status, d.Message)
+	}
+}
+
+func TestCC7_2_FailsWhenAzureScannedButNoSettings(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc7_2.rego",
+		map[string]any{"resources": []any{azureMarker()}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "fail" {
+		t.Fatalf("status = %q, want fail", d.Status)
+	}
+}
+
+func TestCC7_2_FailsWhenAzureSettingHasNoSink(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	s := azureMonitorSetting("sinkless", map[string]any{
+		"has_workspace_sink": false,
+		"has_storage_sink":   false,
+		"has_eventhub_sink":  false,
+	})
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc7_2.rego",
+		map[string]any{"resources": []any{s, azureMarker()}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "fail" {
+		t.Fatalf("status = %q, want fail", d.Status)
+	}
+}
+
+func TestCC7_2_FailsWhenAzureSettingMissingCategory(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	cats := map[string]any{"Administrative": true, "Security": false}
+	s := azureMonitorSetting("incomplete", map[string]any{"categories": cats})
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc7_2.rego",
+		map[string]any{"resources": []any{s, azureMarker()}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "fail" {
+		t.Fatalf("status = %q, want fail", d.Status)
+	}
+}
+
+// Mixed-cloud scan: AWS compliant, Azure not → fail (Azure side).
+func TestCC7_2_MixedFailsOnAzureGap(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc7_2.rego",
+		map[string]any{"resources": []any{compliantTrail(), awsMarker(), azureMarker()}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "fail" {
+		t.Fatalf("status = %q, want fail (Azure scanned but no diagnostic settings)", d.Status)
+	}
+}
+
 // ── CC6.8 + CC7.3 — GuardDuty ───────────────────────────────────────────────
 // Both controls share the same evaluation surface for v0 (GuardDuty
 // detectors enabled), so tests live together.
