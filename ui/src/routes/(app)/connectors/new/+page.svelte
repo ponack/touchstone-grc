@@ -1,44 +1,67 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { createConnector } from '$lib/api/connectors';
+	import { createConnector, type ConnectorKind } from '$lib/api/connectors';
 	import { toasts } from '$lib/stores/toasts.svelte';
 	import { Loader2 } from 'lucide-svelte';
 
+	let kind = $state<ConnectorKind>('aws');
 	let name = $state('');
-	let accountId = $state('');
-	let regions = $state('us-east-1');
-	let authMethod = $state<'role' | 'key'>('role');
-	let roleArn = $state('');
-	let externalId = $state('');
-	let accessKeyId = $state('');
-	let secretAccessKey = $state('');
 	let scheduleCron = $state('');
 	let submitting = $state(false);
+
+	// ── AWS ───────────────────────────────────────────────────────────
+	let awsAccountId = $state('');
+	let awsRegions = $state('us-east-1');
+	let awsAuthMethod = $state<'role' | 'key'>('role');
+	let awsRoleArn = $state('');
+	let awsExternalId = $state('');
+	let awsAccessKeyId = $state('');
+	let awsSecretAccessKey = $state('');
+
+	// ── Azure ─────────────────────────────────────────────────────────
+	let azTenantId = $state('');
+	let azSubscriptionId = $state('');
+	let azClientId = $state('');
+	let azClientSecret = $state('');
+
+	function buildConfig(): Record<string, unknown> {
+		if (kind === 'aws') {
+			const cfg: Record<string, unknown> = {
+				account_id: awsAccountId.trim(),
+				regions: awsRegions
+					.split(',')
+					.map((r) => r.trim())
+					.filter((r) => r.length > 0),
+				auth_method: awsAuthMethod
+			};
+			if (awsAuthMethod === 'role') {
+				cfg.role_arn = awsRoleArn.trim();
+				if (awsExternalId.trim()) cfg.external_id = awsExternalId.trim();
+			} else {
+				cfg.access_key_id = awsAccessKeyId.trim();
+				cfg.secret_access_key = awsSecretAccessKey;
+			}
+			return cfg;
+		}
+		// azure
+		const cfg: Record<string, unknown> = {
+			tenant_id: azTenantId.trim(),
+			client_id: azClientId.trim(),
+			client_secret: azClientSecret
+		};
+		if (azSubscriptionId.trim()) cfg.subscription_id = azSubscriptionId.trim();
+		return cfg;
+	}
 
 	async function submit(e: SubmitEvent) {
 		e.preventDefault();
 		if (submitting) return;
 		submitting = true;
 		try {
-			const config: Record<string, unknown> = {
-				account_id: accountId.trim(),
-				regions: regions
-					.split(',')
-					.map((r) => r.trim())
-					.filter((r) => r.length > 0),
-				auth_method: authMethod
-			};
-			if (authMethod === 'role') {
-				config.role_arn = roleArn.trim();
-				if (externalId.trim()) config.external_id = externalId.trim();
-			} else {
-				config.access_key_id = accessKeyId.trim();
-				config.secret_access_key = secretAccessKey;
-			}
 			const created = await createConnector({
-				kind: 'aws',
+				kind,
 				name: name.trim(),
-				config,
+				config: buildConfig(),
 				schedule_cron: scheduleCron.trim() || null
 			});
 			toasts.success(`Created ${created.name}.`);
@@ -49,6 +72,19 @@
 			submitting = false;
 		}
 	}
+
+	const kinds: { value: ConnectorKind; label: string; blurb: string }[] = [
+		{
+			value: 'aws',
+			label: 'AWS',
+			blurb: 'Read-only IAM credentials. Role assumption recommended.'
+		},
+		{
+			value: 'azure',
+			label: 'Azure',
+			blurb: 'Service Principal (tenant + client ID + client secret).'
+		}
+	];
 </script>
 
 <svelte:head>
@@ -59,119 +95,190 @@
 	<a href="/connectors" class="text-sm text-zinc-500 underline-offset-4 hover:underline"
 		>← Connectors</a
 	>
-	<h1 class="mt-2 text-2xl font-semibold tracking-tight text-zinc-100">New AWS connector</h1>
-	<p class="mt-1 text-sm text-zinc-400">
-		Touchstone connects with read-only IAM credentials. Use role assumption when possible — the
-		access-key option exists for environments that cannot grant a role.
-	</p>
+	<h1 class="mt-2 text-2xl font-semibold tracking-tight text-zinc-100">New connector</h1>
 
 	<form onsubmit={submit} class="mt-8 space-y-5">
+		<fieldset class="space-y-2 rounded-md border border-zinc-800 p-4">
+			<legend class="px-1 text-sm font-medium text-zinc-300">Kind</legend>
+			{#each kinds as k (k.value)}
+				<label class="flex items-start gap-2">
+					<input type="radio" name="kind" value={k.value} bind:group={kind} />
+					<span>
+						<span class="block text-sm text-zinc-100">{k.label}</span>
+						<span class="block text-xs text-zinc-500">{k.blurb}</span>
+					</span>
+				</label>
+			{/each}
+		</fieldset>
+
 		<div>
 			<label for="name" class="mb-1 block text-sm text-zinc-300">Name</label>
 			<input
 				id="name"
 				type="text"
 				required
-				placeholder="Production AWS"
+				placeholder={kind === 'aws' ? 'Production AWS' : 'Production Azure'}
 				bind:value={name}
 				class="field-input"
 			/>
 		</div>
 
-		<div>
-			<label for="account_id" class="mb-1 block text-sm text-zinc-300">AWS account ID</label>
-			<input
-				id="account_id"
-				type="text"
-				required
-				inputmode="numeric"
-				pattern="[0-9]{'{'}12{'}'}"
-				placeholder="123456789012"
-				bind:value={accountId}
-				class="field-input"
-			/>
-		</div>
-
-		<div>
-			<label for="regions" class="mb-1 block text-sm text-zinc-300">
-				Regions <span class="text-xs text-zinc-500">(comma-separated)</span>
-			</label>
-			<input id="regions" type="text" required bind:value={regions} class="field-input" />
-		</div>
-
-		<fieldset class="space-y-3 rounded-md border border-zinc-800 p-4">
-			<legend class="px-1 text-sm font-medium text-zinc-300">Authentication</legend>
-			<label class="flex items-start gap-2">
-				<input type="radio" name="auth_method" value="role" bind:group={authMethod} />
-				<span>
-					<span class="block text-sm text-zinc-100">Role assumption (recommended)</span>
-					<span class="block text-xs text-zinc-500">
-						Worker uses ambient credentials to <code>sts:AssumeRole</code> into your role.
-					</span>
-				</span>
-			</label>
-			<label class="flex items-start gap-2">
-				<input type="radio" name="auth_method" value="key" bind:group={authMethod} />
-				<span>
-					<span class="block text-sm text-zinc-100">Access key + secret</span>
-					<span class="block text-xs text-zinc-500">
-						Long-lived IAM key. Encrypted at rest with TOUCHSTONE_SECRET_KEY.
-					</span>
-				</span>
-			</label>
-		</fieldset>
-
-		{#if authMethod === 'role'}
+		{#if kind === 'aws'}
 			<div>
-				<label for="role_arn" class="mb-1 block text-sm text-zinc-300">Role ARN</label>
+				<label for="account_id" class="mb-1 block text-sm text-zinc-300">AWS account ID</label>
 				<input
-					id="role_arn"
+					id="account_id"
 					type="text"
 					required
-					placeholder="arn:aws:iam::123456789012:role/TouchstoneReadOnly"
-					bind:value={roleArn}
+					inputmode="numeric"
+					pattern="[0-9]{'{'}12{'}'}"
+					placeholder="123456789012"
+					bind:value={awsAccountId}
 					class="field-input"
 				/>
 			</div>
+
 			<div>
-				<label for="external_id" class="mb-1 block text-sm text-zinc-300">
-					External ID <span class="text-xs text-zinc-500">(optional)</span>
+				<label for="regions" class="mb-1 block text-sm text-zinc-300">
+					Regions <span class="text-xs text-zinc-500">(comma-separated)</span>
+				</label>
+				<input id="regions" type="text" required bind:value={awsRegions} class="field-input" />
+			</div>
+
+			<fieldset class="space-y-3 rounded-md border border-zinc-800 p-4">
+				<legend class="px-1 text-sm font-medium text-zinc-300">Authentication</legend>
+				<label class="flex items-start gap-2">
+					<input type="radio" name="auth_method" value="role" bind:group={awsAuthMethod} />
+					<span>
+						<span class="block text-sm text-zinc-100">Role assumption (recommended)</span>
+						<span class="block text-xs text-zinc-500">
+							Worker uses ambient credentials to <code>sts:AssumeRole</code> into your role.
+						</span>
+					</span>
+				</label>
+				<label class="flex items-start gap-2">
+					<input type="radio" name="auth_method" value="key" bind:group={awsAuthMethod} />
+					<span>
+						<span class="block text-sm text-zinc-100">Access key + secret</span>
+						<span class="block text-xs text-zinc-500">
+							Long-lived IAM key. Encrypted at rest with TOUCHSTONE_SECRET_KEY.
+						</span>
+					</span>
+				</label>
+			</fieldset>
+
+			{#if awsAuthMethod === 'role'}
+				<div>
+					<label for="role_arn" class="mb-1 block text-sm text-zinc-300">Role ARN</label>
+					<input
+						id="role_arn"
+						type="text"
+						required
+						placeholder="arn:aws:iam::123456789012:role/TouchstoneReadOnly"
+						bind:value={awsRoleArn}
+						class="field-input"
+					/>
+				</div>
+				<div>
+					<label for="external_id" class="mb-1 block text-sm text-zinc-300">
+						External ID <span class="text-xs text-zinc-500">(optional)</span>
+					</label>
+					<input id="external_id" type="text" bind:value={awsExternalId} class="field-input" />
+				</div>
+			{:else}
+				<div>
+					<label for="access_key_id" class="mb-1 block text-sm text-zinc-300">Access key ID</label>
+					<input
+						id="access_key_id"
+						type="text"
+						required
+						autocomplete="off"
+						bind:value={awsAccessKeyId}
+						class="field-input"
+					/>
+				</div>
+				<div>
+					<label for="secret_access_key" class="mb-1 block text-sm text-zinc-300">
+						Secret access key
+					</label>
+					<input
+						id="secret_access_key"
+						type="password"
+						required
+						autocomplete="off"
+						bind:value={awsSecretAccessKey}
+						class="field-input"
+					/>
+				</div>
+			{/if}
+		{:else if kind === 'azure'}
+			<div>
+				<label for="tenant_id" class="mb-1 block text-sm text-zinc-300">Tenant ID</label>
+				<input
+					id="tenant_id"
+					type="text"
+					required
+					placeholder="12345678-1234-1234-1234-1234567890ab"
+					bind:value={azTenantId}
+					class="field-input"
+				/>
+			</div>
+
+			<div>
+				<label for="subscription_id" class="mb-1 block text-sm text-zinc-300">
+					Subscription ID
+					<span class="text-xs text-zinc-500">
+						(optional — required for subscription-scoped services)
+					</span>
 				</label>
 				<input
-					id="external_id"
+					id="subscription_id"
 					type="text"
-					bind:value={externalId}
+					placeholder="00000000-0000-0000-0000-000000000000"
+					bind:value={azSubscriptionId}
 					class="field-input"
 				/>
 			</div>
-		{:else}
+
 			<div>
-				<label for="access_key_id" class="mb-1 block text-sm text-zinc-300">Access key ID</label>
+				<label for="client_id" class="mb-1 block text-sm text-zinc-300">
+					Client ID
+					<span class="text-xs text-zinc-500">(Service Principal application ID)</span>
+				</label>
 				<input
-					id="access_key_id"
+					id="client_id"
 					type="text"
 					required
-					autocomplete="off"
-					bind:value={accessKeyId}
+					placeholder="abcdef01-2345-6789-abcd-ef0123456789"
+					bind:value={azClientId}
 					class="field-input"
 				/>
 			</div>
+
 			<div>
-				<label for="secret_access_key" class="mb-1 block text-sm text-zinc-300">Secret access key</label>
+				<label for="client_secret" class="mb-1 block text-sm text-zinc-300">Client secret</label>
 				<input
-					id="secret_access_key"
+					id="client_secret"
 					type="password"
 					required
 					autocomplete="off"
-					bind:value={secretAccessKey}
+					bind:value={azClientSecret}
 					class="field-input"
 				/>
+				<p class="mt-1 text-xs text-zinc-500">
+					Encrypted at rest with TOUCHSTONE_SECRET_KEY. Required Graph permissions:
+					<code>AuditLog.Read.All</code> and <code>UserAuthenticationMethod.Read.All</code>
+					(admin-consented application permissions).
+				</p>
 			</div>
 		{/if}
 
 		<div>
 			<label for="schedule_cron" class="mb-1 block text-sm text-zinc-300">
-				Schedule <span class="text-xs text-zinc-500">(cron, optional — leave empty for on-demand)</span>
+				Schedule
+				<span class="text-xs text-zinc-500">
+					(cron, optional — leave empty for on-demand)
+				</span>
 			</label>
 			<input
 				id="schedule_cron"
