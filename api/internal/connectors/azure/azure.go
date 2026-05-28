@@ -127,6 +127,12 @@ func (Connector) Scan(ctx context.Context, cfgRaw, secretRaw json.RawMessage) (*
 	}
 	res.Resources = append(res.Resources, monRes...)
 
+	defRes, err := scanDefender(ctx, cfg, sec)
+	if err != nil {
+		return nil, err
+	}
+	res.Resources = append(res.Resources, defRes...)
+
 	return res, nil
 }
 

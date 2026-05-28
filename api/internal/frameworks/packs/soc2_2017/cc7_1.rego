@@ -1,24 +1,25 @@
 # SOC 2 2017 — CC7.1 Vulnerability detection.
 #
-# Rule (Security Hub surface): the account must have AWS Security
-# Hub enabled with at least one compliance standard subscribed. The
-# CIS AWS Foundations Benchmark and AWS Foundational Security Best
-# Practices both include vulnerability-detection rules (Inspector
-# findings, KMS rotation, IMDSv2, etc.), so a subscribed standard
-# = an active vulnerability-detection pipeline.
+# Evaluates two cloud-native vulnerability-detection surfaces:
 #
-# Future extensions: AWS Inspector (direct vuln scanning, surfaces
-# CVE matches against running EC2 + ECR images), AWS Config
-# conformance packs (drift detection).
+#   AWS Security Hub             Hub enabled + at least one
+#                                 compliance standard subscribed
+#                                 (CIS / AWS Foundational / PCI-DSS /
+#                                 NIST 800-53 — each includes
+#                                 vulnerability rules).
+#   Defender for Cloud           At least one Standard-tier plan
+#                                 (Defender for Servers + Defender
+#                                 CSPM ship vulnerability assessment).
 #
-# Applicability: any aws.* in scan input means we audited AWS. If
-# AWS was scanned but no Hub appears in the resource list, that's a
-# real failure — Security Hub is not enabled in any of the configured
-# regions.
+# Future extensions: AWS Inspector (direct vuln scanning), Config
+# conformance packs (drift detection), Defender vulnerability
+# assessment results.
 
 package soc2_2017.cc7_1
 
 import rego.v1
+
+# ── AWS Security Hub ────────────────────────────────────────────────
 
 hubs := [r | some r in input.resources; r.type == "aws.securityhub.hub"]
 
@@ -28,12 +29,7 @@ aws_scanned if {
 }
 
 default aws_scanned := false
-default applicable := false
 
-applicable if aws_scanned
-
-# A "compliant" Hub has at least one standard subscribed. An enabled
-# Hub with no standards is just an empty inbox.
 hub_with_standards(h) if {
 	count(h.attrs.subscribed_standards) > 0
 }
@@ -43,10 +39,8 @@ has_active_hub if {
 	hub_with_standards(h)
 }
 
-# ── Violations ──────────────────────────────────────────────────────
-
 violations contains v if {
-	applicable
+	aws_scanned
 	count(hubs) == 0
 	v := {
 		"resource_type": "aws.securityhub",
@@ -56,7 +50,7 @@ violations contains v if {
 }
 
 violations contains v if {
-	applicable
+	aws_scanned
 	count(hubs) > 0
 	not has_active_hub
 	some h in hubs
@@ -67,36 +61,72 @@ violations contains v if {
 	}
 }
 
-# ── Outputs ─────────────────────────────────────────────────────────
+# ── Microsoft Defender for Cloud ────────────────────────────────────
+
+defender_plans := [r | some r in input.resources; r.type == "azure.defender.pricing"]
+
+azure_scanned if {
+	some r in input.resources
+	startswith(r.type, "azure.")
+}
+
+default azure_scanned := false
+
+has_enabled_defender if {
+	some p in defender_plans
+	p.attrs.enabled == true
+}
+
+violations contains v if {
+	azure_scanned
+	count(defender_plans) == 0
+	v := {
+		"resource_type": "azure.defender",
+		"resource_id":   "(subscription)",
+		"reason":        "no Microsoft Defender for Cloud pricing plans returned for this subscription",
+	}
+}
+
+violations contains v if {
+	azure_scanned
+	count(defender_plans) > 0
+	not has_enabled_defender
+	v := {
+		"resource_type": "azure.defender",
+		"resource_id":   "(subscription)",
+		"reason":        "all Defender for Cloud plans are on the Free tier — no active vulnerability detection pipeline",
+	}
+}
+
+# ── Applicability + outputs ─────────────────────────────────────────
+
+default applicable := false
+
+applicable if aws_scanned
+applicable if azure_scanned
 
 default status := "not_applicable"
-default message := "No AWS resources in scan input."
+default message := "No cloud resources in scan input."
 default failures := []
 
 failures := [v | some v in violations]
 
 status := "pass" if {
 	applicable
-	has_active_hub
+	count(violations) == 0
 }
 
 status := "fail" if {
 	applicable
-	not has_active_hub
+	count(violations) > 0
 }
 
-message := "Security Hub is active with at least one compliance standard subscribed." if {
+message := sprintf("%d vulnerability-detection finding(s) across configured clouds.", [count(violations)]) if {
 	applicable
-	has_active_hub
+	count(violations) > 0
 }
 
-message := "Security Hub is not enabled in any configured region." if {
+message := "Every audited cloud has an active vulnerability-detection pipeline." if {
 	applicable
-	count(hubs) == 0
-}
-
-message := "Security Hub is enabled but no compliance standards are subscribed." if {
-	applicable
-	count(hubs) > 0
-	not has_active_hub
+	count(violations) == 0
 }
