@@ -707,6 +707,106 @@ func TestCC6_6_FailsWhenRangeCoversSensitivePort(t *testing.T) {
 	}
 }
 
+// ── Azure NSG — CC6.6 ───────────────────────────────────────────────────────
+
+func azureNSG(name string, inbound []any) map[string]any {
+	return map[string]any{
+		"type": "azure.network.nsg",
+		"id":   "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Network/networkSecurityGroups/" + name,
+		"attrs": map[string]any{
+			"name":            name,
+			"subscription_id": "sub",
+			"location":        "eastus",
+			"inbound_rules":   inbound,
+		},
+	}
+}
+
+func azureNSGRule(name, protocol string, from, to int, sources []any) map[string]any {
+	return map[string]any{
+		"name":            name,
+		"priority":        100,
+		"protocol":        protocol,
+		"from_port":       from,
+		"to_port":         to,
+		"source_prefixes": sources,
+	}
+}
+
+func TestCC6_6_FailsOnAzureNSGSSHWorldOpen(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	nsg := azureNSG("prod", []any{
+		azureNSGRule("allow-ssh", "Tcp", 22, 22, []any{"*"}),
+	})
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc6_6.rego",
+		map[string]any{"resources": []any{nsg}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "fail" {
+		t.Fatalf("status = %q, want fail", d.Status)
+	}
+}
+
+func TestCC6_6_FailsOnAzureNSGInternetTag(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	nsg := azureNSG("prod", []any{
+		azureNSGRule("allow-rdp", "Tcp", 3389, 3389, []any{"Internet"}),
+	})
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc6_6.rego",
+		map[string]any{"resources": []any{nsg}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "fail" {
+		t.Fatalf("status = %q, want fail", d.Status)
+	}
+}
+
+func TestCC6_6_FailsOnAzureNSGAllProtocols(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	nsg := azureNSG("prod", []any{
+		azureNSGRule("nuke", "*", 0, 65535, []any{"*"}),
+	})
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc6_6.rego",
+		map[string]any{"resources": []any{nsg}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "fail" {
+		t.Fatalf("status = %q, want fail", d.Status)
+	}
+}
+
+func TestCC6_6_PassesOnAzureNSGRestricted(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	// Webserver SG: world-open 443 (OK), SSH from corp CIDR only (OK).
+	nsg := azureNSG("prod", []any{
+		azureNSGRule("allow-https", "Tcp", 443, 443, []any{"*"}),
+		azureNSGRule("allow-ssh-corp", "Tcp", 22, 22, []any{"10.0.0.0/8"}),
+	})
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc6_6.rego",
+		map[string]any{"resources": []any{nsg}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "pass" {
+		t.Fatalf("status = %q, want pass; message=%q", d.Status, d.Message)
+	}
+}
+
 // ── CC7.2 — CloudTrail system monitoring ────────────────────────────────────
 
 func compliantTrail() map[string]any {
