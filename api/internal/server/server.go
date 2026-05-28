@@ -15,6 +15,7 @@ import (
 	awsconn "github.com/ponack/touchstone/internal/connectors/aws"
 	azureconn "github.com/ponack/touchstone/internal/connectors/azure"
 	githubconn "github.com/ponack/touchstone/internal/connectors/github"
+	linearconn "github.com/ponack/touchstone/internal/connectors/linear"
 	"github.com/ponack/touchstone/internal/evidence"
 	"github.com/ponack/touchstone/internal/exceptions"
 	"github.com/ponack/touchstone/internal/exports"
@@ -52,6 +53,7 @@ func Run(ctx context.Context, cfg *config.Config, pool *pgxpool.Pool) error {
 	registry.Register(awsconn.New())
 	registry.Register(azureconn.New())
 	registry.Register(githubconn.New())
+	registry.Register(linearconn.New())
 
 	v1 := e.Group("/api/v1", auth.RequireUser(cfg.SecretKey))
 	v1.GET("/me", func(c echo.Context) error {

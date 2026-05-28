@@ -18,6 +18,7 @@ const (
 	KindAWS    Kind = "aws"
 	KindAzure  Kind = "azure"
 	KindGitHub Kind = "github"
+	KindLinear Kind = "linear"
 )
 
 // Resource is one row in the normalized output of a connector scan.

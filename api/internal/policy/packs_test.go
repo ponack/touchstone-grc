@@ -1550,3 +1550,103 @@ func TestCC6_2_NotApplicableWhenNoGitHub(t *testing.T) {
 		t.Fatalf("status = %q, want not_applicable", d.Status)
 	}
 }
+
+// ── CC7.4 — Linear incident response ─────────────────────────────────────────
+
+func linearWorkspace(name string, closedCount, staleCount int, attestNone bool) map[string]any {
+	return map[string]any{
+		"type": "linear.workspace",
+		"id":   "linear://workspaces/" + name,
+		"attrs": map[string]any{
+			"workspace_name":                   name,
+			"incident_labels":                  []any{"security", "incident"},
+			"sla_window_days":                  30,
+			"attest_no_incidents":              attestNone,
+			"security_issues_closed_count":     closedCount,
+			"security_issues_open_stale_count": staleCount,
+		},
+	}
+}
+
+func TestCC7_4_PassesWhenClosedTicketInWindow(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	ws := linearWorkspace("forged-in-feathers", 2, 0, false)
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc7_4.rego",
+		map[string]any{"resources": []any{ws}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "pass" {
+		t.Fatalf("status = %q, want pass; message=%q", d.Status, d.Message)
+	}
+}
+
+func TestCC7_4_PassesWhenAttestNoIncidents(t *testing.T) {
+	// Zero closed tickets in window is fine if the operator explicitly
+	// attests the window was incident-free.
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	ws := linearWorkspace("calm-quarter", 0, 0, true)
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc7_4.rego",
+		map[string]any{"resources": []any{ws}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "pass" {
+		t.Fatalf("status = %q, want pass; message=%q", d.Status, d.Message)
+	}
+}
+
+func TestCC7_4_FailsWithNoProofAndNoAttestation(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	ws := linearWorkspace("silent-team", 0, 0, false)
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc7_4.rego",
+		map[string]any{"resources": []any{ws}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "fail" {
+		t.Fatalf("status = %q, want fail", d.Status)
+	}
+}
+
+func TestCC7_4_FailsWhenStaleOpenTickets(t *testing.T) {
+	// Even a workspace with closed-in-window tickets fails if there
+	// are incident-labelled tickets still open past the SLA.
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	ws := linearWorkspace("backlogged-team", 3, 2, false)
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc7_4.rego",
+		map[string]any{"resources": []any{ws}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "fail" {
+		t.Fatalf("status = %q, want fail", d.Status)
+	}
+}
+
+func TestCC7_4_NotApplicableWhenNoLinear(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc7_4.rego",
+		map[string]any{"resources": []any{awsMarker()}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "not_applicable" {
+		t.Fatalf("status = %q, want not_applicable", d.Status)
+	}
+}
