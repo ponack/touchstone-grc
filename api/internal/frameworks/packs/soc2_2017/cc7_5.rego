@@ -1,22 +1,19 @@
 # SOC 2 2017 — CC7.5 Recovery procedures.
 #
-# Rule (RDS surface): every RDS DB instance must have:
-#   - automated backups enabled (backup_retention_period >= 7)
-#   - deletion protection enabled (deletion_protection == true)
+# Evaluates relational-DB recovery posture across two surfaces:
 #
-# Together those mean "if the DB is corrupted, dropped, or
-# accidentally deleted, the data is recoverable from at least a
-# week of point-in-time backups". This is the auditor-friendly
-# proxy for 'we have a recovery procedure' on a relational DB.
+#   AWS RDS         backup_retention_period >= 7 days
+#                   AND deletion_protection == true
+#   Azure SQL DB    backup_retention_period (short-term) >= 7 days.
+#                   Azure SQL has no per-DB deletion_protection
+#                   toggle equivalent — soft-delete is handled at
+#                   the subscription / resource-lock level, which
+#                   we will check in a follow-up.
 #
-# Future extensions: S3 versioning + cross-region replication,
-# DynamoDB point-in-time recovery, EBS snapshot policies, AWS
-# Backup vault coverage.
-#
-# Applicability: only fires when RDS instances are in scan input.
-# An account with no RDS (e.g. DynamoDB-only architecture) yields
-# not_applicable here — the recovery story for those services is
-# evaluated by their own controls when they ship.
+# Applicability fires only when at least one supported DB exists in
+# scan input. Accounts with no relational databases (DynamoDB-only,
+# S3-only, Cosmos-only) yield not_applicable here — recovery for
+# those services lives in their own controls.
 
 package soc2_2017.cc7_5
 
@@ -24,19 +21,12 @@ import rego.v1
 
 min_backup_days := 7
 
-dbs := [r | some r in input.resources; r.type == "aws.rds.db_instance"]
+# ── AWS RDS ─────────────────────────────────────────────────────────
 
-applicable if {
-	count(dbs) > 0
-}
-
-default applicable := false
-
-# ── Violations ──────────────────────────────────────────────────────
+rds_dbs := [r | some r in input.resources; r.type == "aws.rds.db_instance"]
 
 violations contains v if {
-	applicable
-	some db in dbs
+	some db in rds_dbs
 	db.attrs.backup_retention_period < min_backup_days
 	v := {
 		"resource_type": db.type,
@@ -46,8 +36,7 @@ violations contains v if {
 }
 
 violations contains v if {
-	applicable
-	some db in dbs
+	some db in rds_dbs
 	db.attrs.deletion_protection != true
 	v := {
 		"resource_type": db.type,
@@ -56,10 +45,29 @@ violations contains v if {
 	}
 }
 
-# ── Outputs ─────────────────────────────────────────────────────────
+# ── Azure SQL ───────────────────────────────────────────────────────
+
+azure_dbs := [r | some r in input.resources; r.type == "azure.sql.database"]
+
+violations contains v if {
+	some db in azure_dbs
+	db.attrs.backup_retention_period < min_backup_days
+	v := {
+		"resource_type": db.type,
+		"resource_id":   db.id,
+		"reason":        sprintf("short-term backup retention is %d day(s); recovery baseline is %d", [db.attrs.backup_retention_period, min_backup_days]),
+	}
+}
+
+# ── Applicability + outputs ─────────────────────────────────────────
+
+applicable if count(rds_dbs) > 0
+applicable if count(azure_dbs) > 0
+
+default applicable := false
 
 default status := "not_applicable"
-default message := "No RDS instances in scan input."
+default message := "No relational database resources in scan input."
 default failures := []
 
 failures := [v | some v in violations]
@@ -74,12 +82,12 @@ status := "fail" if {
 	count(violations) > 0
 }
 
-message := sprintf("All %d RDS instance(s) have recovery configured: backups >= %d days + deletion protection.", [count(dbs), min_backup_days]) if {
+message := sprintf("All %d database(s) meet recovery baselines: backups >= %d days.", [count(rds_dbs) + count(azure_dbs), min_backup_days]) if {
 	applicable
 	count(violations) == 0
 }
 
-message := sprintf("%d RDS instance recovery finding(s) — backup retention or deletion protection gap.", [count(violations)]) if {
+message := sprintf("%d recovery finding(s) across configured databases.", [count(violations)]) if {
 	applicable
 	count(violations) > 0
 }
