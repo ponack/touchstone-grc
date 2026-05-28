@@ -35,6 +35,15 @@
 	let linAttestNoIncidents = $state(false);
 	let linApiKey = $state('');
 
+	// ── Jira ──────────────────────────────────────────────────────────
+	let jiraSiteUrl = $state('');
+	let jiraEmail = $state('');
+	let jiraProjectKeys = $state('');
+	let jiraIncidentLabels = $state('security, incident');
+	let jiraSlaWindowDays = $state(30);
+	let jiraAttestNoIncidents = $state(false);
+	let jiraApiToken = $state('');
+
 	function buildConfig(): Record<string, unknown> {
 		if (kind === 'aws') {
 			const cfg: Record<string, unknown> = {
@@ -69,17 +78,36 @@
 				access_token: ghAccessToken
 			};
 		}
-		// linear
-		return {
-			workspace_name: linWorkspaceName.trim(),
-			incident_labels: linIncidentLabels
+		if (kind === 'linear') {
+			return {
+				workspace_name: linWorkspaceName.trim(),
+				incident_labels: linIncidentLabels
+					.split(',')
+					.map((s) => s.trim())
+					.filter((s) => s.length > 0),
+				sla_window_days: linSlaWindowDays,
+				attest_no_incidents: linAttestNoIncidents,
+				api_key: linApiKey
+			};
+		}
+		// jira
+		const jiraCfg: Record<string, unknown> = {
+			site_url: jiraSiteUrl.trim(),
+			email: jiraEmail.trim(),
+			incident_labels: jiraIncidentLabels
 				.split(',')
 				.map((s) => s.trim())
 				.filter((s) => s.length > 0),
-			sla_window_days: linSlaWindowDays,
-			attest_no_incidents: linAttestNoIncidents,
-			api_key: linApiKey
+			sla_window_days: jiraSlaWindowDays,
+			attest_no_incidents: jiraAttestNoIncidents,
+			api_token: jiraApiToken
 		};
+		const projectKeys = jiraProjectKeys
+			.split(',')
+			.map((s) => s.trim())
+			.filter((s) => s.length > 0);
+		if (projectKeys.length > 0) jiraCfg.project_keys = projectKeys;
+		return jiraCfg;
 	}
 
 	async function submit(e: SubmitEvent) {
@@ -122,6 +150,11 @@
 			value: 'linear',
 			label: 'Linear',
 			blurb: 'Workspace + Personal API Key. Tracks incident-labelled tickets for CC7.4.'
+		},
+		{
+			value: 'jira',
+			label: 'Jira',
+			blurb: 'Atlassian Cloud site + email + API token. Parallel CC7.4 source to Linear.'
 		}
 	];
 </script>
@@ -421,6 +454,111 @@
 				/>
 				<p class="mt-1 text-xs text-zinc-500">
 					Create at Linear → Settings → Account → API. Encrypted at rest with
+					TOUCHSTONE_SECRET_KEY.
+				</p>
+			</div>
+		{:else if kind === 'jira'}
+			<div>
+				<label for="jira_site_url" class="mb-1 block text-sm text-zinc-300">Site URL</label>
+				<input
+					id="jira_site_url"
+					type="text"
+					required
+					placeholder="https://acme.atlassian.net"
+					bind:value={jiraSiteUrl}
+					class="field-input"
+				/>
+				<p class="mt-1 text-xs text-zinc-500">
+					Atlassian Cloud only. Must end in <code>.atlassian.net</code>.
+				</p>
+			</div>
+
+			<div>
+				<label for="jira_email" class="mb-1 block text-sm text-zinc-300">Atlassian email</label>
+				<input
+					id="jira_email"
+					type="email"
+					required
+					placeholder="ops@example.com"
+					bind:value={jiraEmail}
+					class="field-input"
+				/>
+				<p class="mt-1 text-xs text-zinc-500">
+					The Atlassian account email used to mint the API token (Basic auth pair).
+				</p>
+			</div>
+
+			<div>
+				<label for="jira_project_keys" class="mb-1 block text-sm text-zinc-300">
+					Project keys <span class="text-xs text-zinc-500">(comma-separated, optional)</span>
+				</label>
+				<input
+					id="jira_project_keys"
+					type="text"
+					placeholder="SEC, OPS"
+					bind:value={jiraProjectKeys}
+					class="field-input"
+				/>
+				<p class="mt-1 text-xs text-zinc-500">
+					Leave empty to search across all projects.
+				</p>
+			</div>
+
+			<div>
+				<label for="jira_incident_labels" class="mb-1 block text-sm text-zinc-300">
+					Incident labels <span class="text-xs text-zinc-500">(comma-separated)</span>
+				</label>
+				<input
+					id="jira_incident_labels"
+					type="text"
+					required
+					bind:value={jiraIncidentLabels}
+					class="field-input"
+				/>
+				<p class="mt-1 text-xs text-zinc-500">
+					Ticket labels that mark security incidents. CC7.4 evaluates these.
+				</p>
+			</div>
+
+			<div>
+				<label for="jira_sla_window_days" class="mb-1 block text-sm text-zinc-300">
+					SLA window (days)
+				</label>
+				<input
+					id="jira_sla_window_days"
+					type="number"
+					min="1"
+					max="365"
+					required
+					bind:value={jiraSlaWindowDays}
+					class="field-input"
+				/>
+			</div>
+
+			<label class="flex items-start gap-2">
+				<input type="checkbox" bind:checked={jiraAttestNoIncidents} class="mt-1" />
+				<span>
+					<span class="block text-sm text-zinc-100">Attest: no security incidents this window</span>
+					<span class="block text-xs text-zinc-500">
+						Use only when the window genuinely had zero incidents. Lets CC7.4 pass without any
+						closed tickets — but you're on the record.
+					</span>
+				</span>
+			</label>
+
+			<div>
+				<label for="jira_api_token" class="mb-1 block text-sm text-zinc-300">API token</label>
+				<input
+					id="jira_api_token"
+					type="password"
+					required
+					autocomplete="off"
+					placeholder="ATATT…"
+					bind:value={jiraApiToken}
+					class="field-input"
+				/>
+				<p class="mt-1 text-xs text-zinc-500">
+					Create at id.atlassian.com → Security → API tokens. Encrypted at rest with
 					TOUCHSTONE_SECRET_KEY.
 				</p>
 			</div>
