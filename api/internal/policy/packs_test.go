@@ -1407,3 +1407,66 @@ func TestCC7_5_NotApplicableWhenNoRDS(t *testing.T) {
 		t.Fatalf("status = %q, want not_applicable", d.Status)
 	}
 }
+
+// ── CC7.5 — Azure SQL ───────────────────────────────────────────────────────
+
+func azureSQLDatabase(name string, retentionDays int) map[string]any {
+	return map[string]any{
+		"type": "azure.sql.database",
+		"id":   "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Sql/servers/srv/databases/" + name,
+		"attrs": map[string]any{
+			"database_name":           name,
+			"server_name":             "srv",
+			"subscription_id":         "sub",
+			"location":                "eastus",
+			"status":                  "Online",
+			"backup_retention_period": retentionDays,
+		},
+	}
+}
+
+func TestCC7_5_PassesOnRecoverableAzureSQL(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc7_5.rego",
+		map[string]any{"resources": []any{azureSQLDatabase("prod-app", 14)}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "pass" {
+		t.Fatalf("status = %q, want pass; message=%q", d.Status, d.Message)
+	}
+}
+
+func TestCC7_5_FailsOnLowAzureRetention(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc7_5.rego",
+		map[string]any{"resources": []any{azureSQLDatabase("prod-app", 1)}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "fail" {
+		t.Fatalf("status = %q, want fail", d.Status)
+	}
+}
+
+// Mixed: AWS RDS compliant, Azure SQL not → fail on Azure side.
+func TestCC7_5_MixedFailsOnAzureGap(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc7_5.rego",
+		map[string]any{"resources": []any{rdsInstance("prod-aws", 14, true), azureSQLDatabase("prod-az", 1)}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "fail" {
+		t.Fatalf("status = %q, want fail", d.Status)
+	}
+}

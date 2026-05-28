@@ -133,6 +133,12 @@ func (Connector) Scan(ctx context.Context, cfgRaw, secretRaw json.RawMessage) (*
 	}
 	res.Resources = append(res.Resources, defRes...)
 
+	sqlRes, err := scanSQL(ctx, cfg, sec)
+	if err != nil {
+		return nil, err
+	}
+	res.Resources = append(res.Resources, sqlRes...)
+
 	return res, nil
 }
 
