@@ -1065,13 +1065,6 @@ func azureMarker() map[string]any {
 	return azureUser("anyone@example.com", true, true, "Member")
 }
 
-// gcpMarker provides a gcp.* resource for tests that need to assert
-// not_applicable on rules that haven't onboarded GCP yet — symmetric
-// to awsMarker / azureMarker.
-func gcpMarker() map[string]any {
-	return gcpUser("anyone@example.com", true, false)
-}
-
 func TestCC7_2_PassesWhenAzureSettingForwardsToWorkspace(t *testing.T) {
 	e, err := policy.NewEngine(packs.FS)
 	if err != nil {
