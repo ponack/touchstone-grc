@@ -58,5 +58,11 @@ func (Connector) Scan(ctx context.Context, cfgRaw, secretRaw json.RawMessage) (*
 	}
 	res.Resources = append(res.Resources, scc...)
 
+	sqlInstances, err := scanCloudSQL(ctx, cfg, sec)
+	if err != nil {
+		return nil, err
+	}
+	res.Resources = append(res.Resources, sqlInstances...)
+
 	return res, nil
 }

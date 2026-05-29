@@ -1956,6 +1956,108 @@ func TestCC7_5_MixedFailsOnAzureGap(t *testing.T) {
 	}
 }
 
+// ── CC7.5 — GCP Cloud SQL ───────────────────────────────────────────────────
+
+func gcpSQLInstance(name string, backupEnabled bool, retentionDays int, deletionProt bool) map[string]any {
+	return map[string]any{
+		"type": "gcp.sql.instance",
+		"id":   "gcp-sql://acme-prod-001/instances/" + name,
+		"attrs": map[string]any{
+			"name":                           name,
+			"project":                        "acme-prod-001",
+			"database_version":               "POSTGRES_15",
+			"state":                          "RUNNABLE",
+			"backup_enabled":                 backupEnabled,
+			"backup_retention_days":          retentionDays,
+			"point_in_time_recovery_enabled": true,
+			"deletion_protection":            deletionProt,
+		},
+	}
+}
+
+func TestCC7_5_PassesWhenGCPSQLCompliant(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	inst := gcpSQLInstance("prod-gcp", true, 14, true)
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc7_5.rego",
+		map[string]any{"resources": []any{inst}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "pass" {
+		t.Fatalf("status = %q, want pass; message=%q", d.Status, d.Message)
+	}
+}
+
+func TestCC7_5_FailsWhenGCPSQLBackupsDisabled(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	inst := gcpSQLInstance("no-backups", false, 0, true)
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc7_5.rego",
+		map[string]any{"resources": []any{inst}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "fail" {
+		t.Fatalf("status = %q, want fail", d.Status)
+	}
+}
+
+func TestCC7_5_FailsWhenGCPSQLRetentionTooShort(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	inst := gcpSQLInstance("short-retention", true, 3, true)
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc7_5.rego",
+		map[string]any{"resources": []any{inst}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "fail" {
+		t.Fatalf("status = %q, want fail", d.Status)
+	}
+}
+
+func TestCC7_5_FailsWhenGCPSQLNoDeletionProtection(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	inst := gcpSQLInstance("no-delprot", true, 14, false)
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc7_5.rego",
+		map[string]any{"resources": []any{inst}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "fail" {
+		t.Fatalf("status = %q, want fail", d.Status)
+	}
+}
+
+func TestCC7_5_PassesAcrossAllThreeClouds(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc7_5.rego",
+		map[string]any{"resources": []any{
+			rdsInstance("prod-aws", 14, true),
+			azureSQLDatabase("prod-az", 14),
+			gcpSQLInstance("prod-gcp", true, 14, true),
+		}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "pass" {
+		t.Fatalf("status = %q, want pass; message=%q", d.Status, d.Message)
+	}
+}
+
 // ── CC6.2 — GitHub MFA enforcement ──────────────────────────────────────────
 
 func githubOrg(login string, requires2FA bool, membersWithout []any) map[string]any {
