@@ -1,6 +1,6 @@
 import { request } from './base';
 
-export type ConnectorKind = 'aws' | 'azure' | 'github' | 'linear' | 'jira';
+export type ConnectorKind = 'aws' | 'azure' | 'github' | 'linear' | 'jira' | 'gcp';
 
 export interface Connector {
 	id: string;

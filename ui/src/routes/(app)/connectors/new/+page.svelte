@@ -44,6 +44,12 @@
 	let jiraAttestNoIncidents = $state(false);
 	let jiraApiToken = $state('');
 
+	// ── GCP ───────────────────────────────────────────────────────────
+	let gcpProjectId = $state('');
+	let gcpWorkspaceCustomerId = $state('');
+	let gcpWorkspaceAdminEmail = $state('');
+	let gcpServiceAccountKeyJson = $state('');
+
 	function buildConfig(): Record<string, unknown> {
 		if (kind === 'aws') {
 			const cfg: Record<string, unknown> = {
@@ -90,24 +96,35 @@
 				api_key: linApiKey
 			};
 		}
-		// jira
-		const jiraCfg: Record<string, unknown> = {
-			site_url: jiraSiteUrl.trim(),
-			email: jiraEmail.trim(),
-			incident_labels: jiraIncidentLabels
+		if (kind === 'jira') {
+			const jiraCfg: Record<string, unknown> = {
+				site_url: jiraSiteUrl.trim(),
+				email: jiraEmail.trim(),
+				incident_labels: jiraIncidentLabels
+					.split(',')
+					.map((s) => s.trim())
+					.filter((s) => s.length > 0),
+				sla_window_days: jiraSlaWindowDays,
+				attest_no_incidents: jiraAttestNoIncidents,
+				api_token: jiraApiToken
+			};
+			const projectKeys = jiraProjectKeys
 				.split(',')
 				.map((s) => s.trim())
-				.filter((s) => s.length > 0),
-			sla_window_days: jiraSlaWindowDays,
-			attest_no_incidents: jiraAttestNoIncidents,
-			api_token: jiraApiToken
+				.filter((s) => s.length > 0);
+			if (projectKeys.length > 0) jiraCfg.project_keys = projectKeys;
+			return jiraCfg;
+		}
+		// gcp
+		const gcpCfg: Record<string, unknown> = {
+			project_id: gcpProjectId.trim(),
+			service_account_key_json: gcpServiceAccountKeyJson
 		};
-		const projectKeys = jiraProjectKeys
-			.split(',')
-			.map((s) => s.trim())
-			.filter((s) => s.length > 0);
-		if (projectKeys.length > 0) jiraCfg.project_keys = projectKeys;
-		return jiraCfg;
+		const customer = gcpWorkspaceCustomerId.trim();
+		const admin = gcpWorkspaceAdminEmail.trim();
+		if (customer) gcpCfg.workspace_customer_id = customer;
+		if (admin) gcpCfg.workspace_admin_email = admin;
+		return gcpCfg;
 	}
 
 	async function submit(e: SubmitEvent) {
@@ -155,6 +172,11 @@
 			value: 'jira',
 			label: 'Jira',
 			blurb: 'Atlassian Cloud site + email + API token. Parallel CC7.4 source to Linear.'
+		},
+		{
+			value: 'gcp',
+			label: 'GCP',
+			blurb: 'Service account JSON. Optional Workspace customer for CC6.1 2SV evidence.'
 		}
 	];
 </script>
@@ -560,6 +582,76 @@
 				<p class="mt-1 text-xs text-zinc-500">
 					Create at id.atlassian.com → Security → API tokens. Encrypted at rest with
 					TOUCHSTONE_SECRET_KEY.
+				</p>
+			</div>
+		{:else if kind === 'gcp'}
+			<div>
+				<label for="gcp_project_id" class="mb-1 block text-sm text-zinc-300">Project ID</label>
+				<input
+					id="gcp_project_id"
+					type="text"
+					required
+					placeholder="acme-prod-001"
+					bind:value={gcpProjectId}
+					class="field-input"
+				/>
+				<p class="mt-1 text-xs text-zinc-500">
+					6-30 chars, lowercase, must start with a letter. Project-scoped scanners (Cloud Storage,
+					VPC firewall, Cloud Logging, SCC, Cloud SQL) run against this project.
+				</p>
+			</div>
+
+			<div>
+				<label for="gcp_workspace_customer_id" class="mb-1 block text-sm text-zinc-300">
+					Workspace customer ID <span class="text-xs text-zinc-500">(optional)</span>
+				</label>
+				<input
+					id="gcp_workspace_customer_id"
+					type="text"
+					placeholder="my_customer or C01abc234"
+					bind:value={gcpWorkspaceCustomerId}
+					class="field-input"
+				/>
+				<p class="mt-1 text-xs text-zinc-500">
+					Set to enable CC6.1 evidence via Admin SDK Directory. Use <code>my_customer</code> for the
+					tenant your SA impersonates, or a C-prefixed customer ID.
+				</p>
+			</div>
+
+			<div>
+				<label for="gcp_workspace_admin_email" class="mb-1 block text-sm text-zinc-300">
+					Workspace admin email <span class="text-xs text-zinc-500">(required if customer set)</span>
+				</label>
+				<input
+					id="gcp_workspace_admin_email"
+					type="email"
+					placeholder="admin@example.com"
+					bind:value={gcpWorkspaceAdminEmail}
+					class="field-input"
+				/>
+				<p class="mt-1 text-xs text-zinc-500">
+					The Workspace admin the service account impersonates via domain-wide delegation.
+				</p>
+			</div>
+
+			<div>
+				<label for="gcp_service_account_key_json" class="mb-1 block text-sm text-zinc-300">
+					Service account key (JSON)
+				</label>
+				<textarea
+					id="gcp_service_account_key_json"
+					required
+					rows="10"
+					autocomplete="off"
+					placeholder={'{\n  "type": "service_account",\n  ...\n}'}
+					bind:value={gcpServiceAccountKeyJson}
+					class="field-input font-mono text-xs"
+				></textarea>
+				<p class="mt-1 text-xs text-zinc-500">
+					Paste the entire SA key file contents. Required roles: <code>roles/cloudsql.viewer</code>,
+					<code>roles/compute.viewer</code>, <code>roles/storage.legacyBucketReader</code>,
+					<code>roles/logging.viewer</code>, <code>roles/securitycenter.findingsViewer</code>
+					— project-scoped. Encrypted at rest with TOUCHSTONE_SECRET_KEY.
 				</p>
 			</div>
 		{/if}
