@@ -78,38 +78,14 @@ func (Connector) Validate(raw json.RawMessage) (json.RawMessage, json.RawMessage
 		return nil, nil, errors.New("project_id is not a valid GCP project ID (6-30 chars, lowercase, must start with a letter)")
 	}
 
-	// SA key parse.
-	keyBlob := strings.TrimSpace(in.ServiceAccountKeyJSON)
-	if keyBlob == "" {
-		return nil, nil, errors.New("service_account_key_json is required (paste the entire SA key file contents)")
-	}
-	var key saKey
-	if err := json.Unmarshal([]byte(keyBlob), &key); err != nil {
-		return nil, nil, fmt.Errorf("service_account_key_json is not valid JSON: %w", err)
-	}
-	if key.Type != "service_account" {
-		return nil, nil, errors.New("service_account_key_json must be a service_account key (type field)")
-	}
-	if key.ClientEmail == "" || key.PrivateKey == "" {
-		return nil, nil, errors.New("service_account_key_json missing client_email or private_key")
-	}
-	if !strings.Contains(key.PrivateKey, "BEGIN PRIVATE KEY") {
-		return nil, nil, errors.New("service_account_key_json private_key does not look like a PEM block")
+	keyBlob, key, err := parseSAKey(in.ServiceAccountKeyJSON)
+	if err != nil {
+		return nil, nil, err
 	}
 
-	// Workspace fields are paired: both or neither.
-	customer := strings.TrimSpace(in.WorkspaceCustomerID)
-	admin := strings.TrimSpace(in.WorkspaceAdminEmail)
-	if customer != "" || admin != "" {
-		if customer == "" || admin == "" {
-			return nil, nil, errors.New("workspace_customer_id and workspace_admin_email must be set together (or both omitted to skip Directory enumeration)")
-		}
-		if !customerIDRE.MatchString(customer) {
-			return nil, nil, errors.New(`workspace_customer_id must be "my_customer" or a C-prefixed customer ID (e.g. "C01abc234")`)
-		}
-		if !strings.Contains(admin, "@") || len(admin) < 5 {
-			return nil, nil, errors.New("workspace_admin_email must be the address of the Workspace admin the SA impersonates")
-		}
+	customer, admin, err := validateWorkspaceFields(in.WorkspaceCustomerID, in.WorkspaceAdminEmail)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	cfg := PublicConfig{
@@ -129,4 +105,45 @@ func (Connector) Validate(raw json.RawMessage) (json.RawMessage, json.RawMessage
 		return nil, nil, err
 	}
 	return cfgB, secB, nil
+}
+
+func parseSAKey(raw string) (string, saKey, error) {
+	blob := strings.TrimSpace(raw)
+	if blob == "" {
+		return "", saKey{}, errors.New("service_account_key_json is required (paste the entire SA key file contents)")
+	}
+	var key saKey
+	if err := json.Unmarshal([]byte(blob), &key); err != nil {
+		return "", saKey{}, fmt.Errorf("service_account_key_json is not valid JSON: %w", err)
+	}
+	if key.Type != "service_account" {
+		return "", saKey{}, errors.New("service_account_key_json must be a service_account key (type field)")
+	}
+	if key.ClientEmail == "" || key.PrivateKey == "" {
+		return "", saKey{}, errors.New("service_account_key_json missing client_email or private_key")
+	}
+	if !strings.Contains(key.PrivateKey, "BEGIN PRIVATE KEY") {
+		return "", saKey{}, errors.New("service_account_key_json private_key does not look like a PEM block")
+	}
+	return blob, key, nil
+}
+
+// Workspace fields are paired: both set means Directory enumeration
+// is on, neither set means it's skipped, exactly one is an error.
+func validateWorkspaceFields(rawCustomer, rawAdmin string) (string, string, error) {
+	customer := strings.TrimSpace(rawCustomer)
+	admin := strings.TrimSpace(rawAdmin)
+	if customer == "" && admin == "" {
+		return "", "", nil
+	}
+	if customer == "" || admin == "" {
+		return "", "", errors.New("workspace_customer_id and workspace_admin_email must be set together (or both omitted to skip Directory enumeration)")
+	}
+	if !customerIDRE.MatchString(customer) {
+		return "", "", errors.New(`workspace_customer_id must be "my_customer" or a C-prefixed customer ID (e.g. "C01abc234")`)
+	}
+	if !strings.Contains(admin, "@") || len(admin) < 5 {
+		return "", "", errors.New("workspace_admin_email must be the address of the Workspace admin the SA impersonates")
+	}
+	return customer, admin, nil
 }
