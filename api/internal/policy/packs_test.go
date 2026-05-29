@@ -199,6 +199,102 @@ func TestCC6_1_MixedCloudViolations(t *testing.T) {
 	}
 }
 
+// ── CC6.1 — GCP Workspace users ─────────────────────────────────────────────
+
+func gcpUser(email string, enrolled2sv, suspended bool) map[string]any {
+	return map[string]any{
+		"type": "gcp.iam.user",
+		"id":   "gcp-workspace://my_customer/users/" + email,
+		"attrs": map[string]any{
+			"primary_email":   email,
+			"is_enrolled_2sv": enrolled2sv,
+			"is_enforced_2sv": enrolled2sv,
+			"suspended":       suspended,
+			"is_admin":        false,
+		},
+	}
+}
+
+func TestCC6_1_PassesWhenGCPUsersEnrolledIn2SV(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc6_1.rego",
+		map[string]any{"resources": []any{gcpUser("alice@example.com", true, false)}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "pass" {
+		t.Fatalf("status = %q, want pass; message=%q", d.Status, d.Message)
+	}
+}
+
+func TestCC6_1_FailsWhenGCPActiveUserMissing2SV(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc6_1.rego",
+		map[string]any{"resources": []any{gcpUser("bob@example.com", false, false)}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "fail" {
+		t.Fatalf("status = %q, want fail", d.Status)
+	}
+	if len(d.Failures) != 1 {
+		t.Fatalf("got %d failures, want 1", len(d.Failures))
+	}
+}
+
+// Suspended accounts can't authenticate, so they're excluded from the
+// MFA rule even when 2SV is not enrolled.
+func TestCC6_1_DoesNotFailOnSuspendedGCPUser(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc6_1.rego",
+		map[string]any{"resources": []any{gcpUser("former@example.com", false, true)}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "pass" {
+		t.Fatalf("status = %q, want pass (suspended users out of scope)", d.Status)
+	}
+}
+
+// Tri-cloud violation surface: AWS, Azure and GCP each contribute
+// one finding.
+func TestCC6_1_TriCloudViolations(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	awsUser := map[string]any{
+		"type": "aws.iam.user",
+		"id":   "arn:aws:iam::123456789012:user/no-mfa",
+		"attrs": map[string]any{
+			"has_console": true,
+			"mfa_devices": []any{},
+		},
+	}
+	az := azureUser("naked@example.com", true, false, "Member")
+	g := gcpUser("naked@example.com", false, false)
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc6_1.rego",
+		map[string]any{"resources": []any{awsUser, az, g}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "fail" {
+		t.Fatalf("status = %q, want fail", d.Status)
+	}
+	if len(d.Failures) != 3 {
+		t.Fatalf("got %d failures, want 3", len(d.Failures))
+	}
+}
+
 // TestCC6_3_PassesWhenAllKeysFresh confirms recent access keys do
 // not trigger the stale-key rule.
 func TestCC6_3_PassesWhenAllKeysFresh(t *testing.T) {

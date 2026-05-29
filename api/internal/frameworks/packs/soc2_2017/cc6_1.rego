@@ -2,8 +2,9 @@
 #
 # Evaluates MFA enforcement across multiple identity providers:
 #
-#   AWS IAM users — has_console + no MFA device → violation
-#   Azure AD users — enabled + MFA-capable but not registered → violation
+#   AWS IAM users        — has_console + no MFA device → violation
+#   Azure AD users       — enabled + MFA-capable but not registered → violation
+#   GCP Workspace users  — not suspended + not enrolled in 2-Step Verification → violation
 #
 # Each cloud's identity surface is its own ruleset; absence of one
 # cloud's resources doesn't suppress the others. The control becomes
@@ -48,6 +49,25 @@ violations contains v if {
 	}
 }
 
+# ── GCP Workspace users ─────────────────────────────────────────────
+# Suspended accounts can't authenticate, so they're excluded from
+# the rule. Every active user must be enrolled in 2-Step Verification
+# (2SV). is_enforced_2sv is captured for context but not part of the
+# pass criterion — enforcement is a Workspace policy lever, while
+# enrolment is the per-user signal that proves the lever works.
+
+violations contains v if {
+	some r in input.resources
+	r.type == "gcp.iam.user"
+	r.attrs.suspended != true
+	r.attrs.is_enrolled_2sv != true
+	v := {
+		"resource_type": r.type,
+		"resource_id":   r.id,
+		"reason":        "GCP Workspace user is active but not enrolled in 2-Step Verification",
+	}
+}
+
 # ── Applicability ───────────────────────────────────────────────────
 
 applicable if {
@@ -57,6 +77,10 @@ applicable if {
 applicable if {
 	some r in input.resources
 	r.type == "azure.ad.user"
+}
+applicable if {
+	some r in input.resources
+	r.type == "gcp.iam.user"
 }
 
 default applicable := false

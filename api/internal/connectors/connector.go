@@ -20,6 +20,7 @@ const (
 	KindGitHub Kind = "github"
 	KindLinear Kind = "linear"
 	KindJira   Kind = "jira"
+	KindGCP    Kind = "gcp"
 )
 
 // Resource is one row in the normalized output of a connector scan.
