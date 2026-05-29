@@ -1360,6 +1360,117 @@ func TestCC7_2_MixedFailsOnAzureGap(t *testing.T) {
 	}
 }
 
+// ── CC7.2 — GCP Cloud Logging sinks ─────────────────────────────────────────
+
+func gcpSink(name, destinationType string, capturesAdmin, durable bool) map[string]any {
+	return map[string]any{
+		"type": "gcp.logging.sink",
+		"id":   "gcp-logging://acme-prod-001/sinks/" + name,
+		"attrs": map[string]any{
+			"name":                    name,
+			"destination":             destinationType + ".googleapis.com/projects/acme/x",
+			"destination_type":        destinationType,
+			"filter":                  "",
+			"captures_admin_activity": capturesAdmin,
+			"is_durable_export":       durable,
+		},
+	}
+}
+
+// gcpMarker provides any gcp.* resource to satisfy gcp_scanned in
+// rules that need an anchor to trigger applicability.
+func gcpMarker() map[string]any {
+	return gcpUser("anyone@example.com", true, false)
+}
+
+func TestCC7_2_PassesWhenGCPDurableSinkExports(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	s := gcpSink("audit-to-bq", "bigquery", true, true)
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc7_2.rego",
+		map[string]any{"resources": []any{s}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "pass" {
+		t.Fatalf("status = %q, want pass; message=%q", d.Status, d.Message)
+	}
+}
+
+func TestCC7_2_FailsWhenGCPScannedButNoSinks(t *testing.T) {
+	// gcp.* resource present (any kind) but no logging sinks at all
+	// — admin audit logs never leave the project.
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc7_2.rego",
+		map[string]any{"resources": []any{gcpMarker()}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "fail" {
+		t.Fatalf("status = %q, want fail (GCP scanned but no sinks)", d.Status)
+	}
+}
+
+func TestCC7_2_FailsWhenGCPSinkNotDurable(t *testing.T) {
+	// Sink captures admin activity but writes to the in-project
+	// _Default logging bucket — not a durable export.
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	s := gcpSink("local-only", "logging", true, false)
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc7_2.rego",
+		map[string]any{"resources": []any{s}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "fail" {
+		t.Fatalf("status = %q, want fail (sink not durable)", d.Status)
+	}
+}
+
+func TestCC7_2_FailsWhenGCPSinkExcludesAdminActivity(t *testing.T) {
+	// Durable destination but filter excludes admin activity logs.
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	s := gcpSink("app-logs-only", "bigquery", false, true)
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc7_2.rego",
+		map[string]any{"resources": []any{s}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "fail" {
+		t.Fatalf("status = %q, want fail (sink does not capture admin activity)", d.Status)
+	}
+}
+
+func TestCC7_2_PassesWithMixedSinks(t *testing.T) {
+	// One bad sink + one compliant sink — applicable cloud passes
+	// as long as at least one sink is durable + captures admin
+	// activity (matches AWS/Azure "any compliant" semantics).
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	bad := gcpSink("local-only", "logging", true, false)
+	good := gcpSink("audit-to-pubsub", "pubsub", true, true)
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc7_2.rego",
+		map[string]any{"resources": []any{bad, good}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "pass" {
+		t.Fatalf("status = %q, want pass; message=%q", d.Status, d.Message)
+	}
+}
+
 // ── CC6.8 + CC7.3 — GuardDuty ───────────────────────────────────────────────
 // Both controls share the same evaluation surface for v0 (GuardDuty
 // detectors enabled), so tests live together.
