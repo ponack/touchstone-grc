@@ -1,12 +1,15 @@
 # SOC 2 2017 — CC6.3 User access revocation / credential rotation.
 #
-# Evaluates two surfaces:
+# Evaluates three surfaces:
 #
-#   AWS IAM         Active access keys older than 365 days.
-#   Azure AD apps   Application registration password credentials
-#                   (client secrets) or key credentials (certs) that
-#                   were issued more than 365 days ago AND remain
-#                   currently valid (end_date > now).
+#   AWS IAM           Active access keys older than 365 days.
+#   Azure AD apps     Application registration password credentials
+#                     (client secrets) or key credentials (certs)
+#                     that were issued more than 365 days ago AND
+#                     remain currently valid (end_date > now).
+#   GCP IAM service   User-managed service account keys older than
+#                     365 days. System-managed keys (Google-rotated)
+#                     are filtered out at the scanner.
 #
 # 365 days is the conservative rotation baseline; tighten in a custom
 # pack if your control framework requires shorter rotation. The
@@ -72,6 +75,22 @@ violations contains v if {
 	}
 }
 
+# ── GCP IAM service account keys ────────────────────────────────────
+
+violations contains v if {
+	some r in input.resources
+	r.type == "gcp.iam.service_account"
+	some k in r.attrs.keys
+	k.key_type == "USER_MANAGED"
+	age_seconds := (now_ns - time.parse_rfc3339_ns(k.valid_after_time)) / 1000000000
+	age_seconds > stale_age_seconds
+	v := {
+		"resource_type": r.type,
+		"resource_id":   r.id,
+		"reason":        sprintf("user-managed key %v on service account %v is older than 365 days", [k.id, r.attrs.email]),
+	}
+}
+
 # ── Applicability ───────────────────────────────────────────────────
 
 applicable if {
@@ -88,6 +107,11 @@ applicable if {
 	some r in input.resources
 	r.type == "azure.ad.application"
 	count(r.attrs.key_credentials) > 0
+}
+applicable if {
+	some r in input.resources
+	r.type == "gcp.iam.service_account"
+	count(r.attrs.keys) > 0
 }
 
 default applicable := false
