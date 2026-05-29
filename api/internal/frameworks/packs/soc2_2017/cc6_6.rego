@@ -1,14 +1,16 @@
 # SOC 2 2017 — CC6.6 Network access controls.
 #
-# Evaluates two AWS surfaces:
+# Evaluates several surfaces in parallel:
 #
-#   1. S3 buckets — Public Access Block + bucket-policy public flag.
-#   2. EC2 security groups — ingress rules that expose sensitive
-#      admin / database ports to the public internet.
+#   AWS S3                    — Public Access Block + bucket-policy public flag.
+#   AWS EC2 security groups   — world-open ingress on sensitive ports / all-proto.
+#   Azure Storage accounts    — allowBlobPublicAccess gate left open.
+#   Azure NSGs                — world-open inbound on sensitive ports / all-proto.
+#   GCP Cloud Storage buckets — publicAccessPrevention != enforced + public IAM bindings.
 #
-# The control becomes "applicable" once either surface is present in
-# the scan input, so adding more surfaces in follow-up PRs (NACLs,
-# Network Firewall, ALB rules) is purely additive.
+# Each source is independent — absence of one cloud's resources
+# doesn't suppress the others. The control becomes "applicable" once
+# any supported surface is present in scan input.
 
 package soc2_2017.cc6_6
 
@@ -183,6 +185,37 @@ azure_nsg_all_protocols_violations contains v if {
 	}
 }
 
+# ── GCP Cloud Storage violations ────────────────────────────────────
+
+# publicAccessPrevention == "enforced" locks the bucket-level gate.
+# Anything else ("inherited", "" / unset) leaves the gate open, which
+# CC6.6 wants held shut even when no public binding exists today.
+gcp_bucket_pap_violations contains v if {
+	some r in input.resources
+	r.type == "gcp.storage.bucket"
+	r.attrs.public_access_prevention != "enforced"
+	v := {
+		"resource_type": r.type,
+		"resource_id":   r.id,
+		"reason":        sprintf("bucket %q has publicAccessPrevention=%q — must be \"enforced\"", [r.attrs.name, r.attrs.public_access_prevention]),
+	}
+}
+
+# Any IAM binding granting a role to allUsers or allAuthenticatedUsers
+# is direct public access. iam_public_bindings is a flattened list of
+# "role:member" strings the scanner emits when it finds either of the
+# two public members in the bucket's IAM policy.
+gcp_bucket_public_iam_violations contains v if {
+	some r in input.resources
+	r.type == "gcp.storage.bucket"
+	count(r.attrs.iam_public_bindings) > 0
+	v := {
+		"resource_type": r.type,
+		"resource_id":   r.id,
+		"reason":        sprintf("bucket %q grants %d public IAM binding(s)", [r.attrs.name, count(r.attrs.iam_public_bindings)]),
+	}
+}
+
 # ── Combined finding set ────────────────────────────────────────────
 
 violations contains v if {
@@ -206,6 +239,12 @@ violations contains v if {
 violations contains v if {
 	some v in azure_nsg_all_protocols_violations
 }
+violations contains v if {
+	some v in gcp_bucket_pap_violations
+}
+violations contains v if {
+	some v in gcp_bucket_public_iam_violations
+}
 
 applicable if {
 	some r in input.resources
@@ -222,6 +261,10 @@ applicable if {
 applicable if {
 	some r in input.resources
 	r.type == "azure.network.nsg"
+}
+applicable if {
+	some r in input.resources
+	r.type == "gcp.storage.bucket"
 }
 
 default applicable := false
@@ -242,7 +285,7 @@ status := "pass" if {
 	count(violations) == 0
 }
 
-message := sprintf("%d network access finding(s) across AWS + Azure surfaces.", [count(violations)]) if {
+message := sprintf("%d network access finding(s) across AWS + Azure + GCP surfaces.", [count(violations)]) if {
 	applicable
 	count(violations) > 0
 }
