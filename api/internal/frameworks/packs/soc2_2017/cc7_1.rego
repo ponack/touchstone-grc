@@ -1,6 +1,6 @@
 # SOC 2 2017 — CC7.1 Vulnerability detection.
 #
-# Evaluates two cloud-native vulnerability-detection surfaces:
+# Evaluates three cloud-native vulnerability-detection surfaces:
 #
 #   AWS Security Hub             Hub enabled + at least one
 #                                 compliance standard subscribed
@@ -10,6 +10,9 @@
 #   Defender for Cloud           At least one Standard-tier plan
 #                                 (Defender for Servers + Defender
 #                                 CSPM ship vulnerability assessment).
+#   GCP Security Command Center   Project-scoped SCC subscription
+#                                 reachable (Security Health Analytics
+#                                 covers vuln + misconfig posture).
 #
 # Future extensions: AWS Inspector (direct vuln scanning), Config
 # conformance packs (drift detection), Defender vulnerability
@@ -98,12 +101,51 @@ violations contains v if {
 	}
 }
 
+# ── GCP Security Command Center ─────────────────────────────────────
+
+scc_subs := [r | some r in input.resources; r.type == "gcp.scc.subscription"]
+
+gcp_scanned if {
+	some r in input.resources
+	startswith(r.type, "gcp.")
+}
+
+default gcp_scanned := false
+
+has_active_scc if {
+	some s in scc_subs
+	s.attrs.is_active == true
+}
+
+violations contains v if {
+	gcp_scanned
+	count(scc_subs) == 0
+	v := {
+		"resource_type": "gcp.scc",
+		"resource_id":   "(project)",
+		"reason":        "no Security Command Center subscription evidence was collected for this project",
+	}
+}
+
+violations contains v if {
+	gcp_scanned
+	count(scc_subs) > 0
+	not has_active_scc
+	some s in scc_subs
+	v := {
+		"resource_type": s.type,
+		"resource_id":   s.id,
+		"reason":        "Security Command Center is not active for this project — no managed vulnerability + posture detection (Security Health Analytics)",
+	}
+}
+
 # ── Applicability + outputs ─────────────────────────────────────────
 
 default applicable := false
 
 applicable if aws_scanned
 applicable if azure_scanned
+applicable if gcp_scanned
 
 default status := "not_applicable"
 default message := "No cloud resources in scan input."

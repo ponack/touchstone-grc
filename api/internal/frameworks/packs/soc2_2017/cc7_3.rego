@@ -1,10 +1,12 @@
 # SOC 2 2017 — CC7.3 Security event analysis.
 #
-# Evaluates the same two surfaces as CC6.8 because in both clouds the
+# Evaluates the same three surfaces as CC6.8 because in each cloud the
 # threat-detection service IS the analysis pipeline:
 #
 #   AWS GuardDuty                 ENABLED detector = active analysis
 #   Microsoft Defender for Cloud  At least one Standard-tier plan
+#   GCP Security Command Center   Project-scoped SCC subscription
+#                                  reachable = active analysis pipeline
 #
 # CC7.3 also expects human review of findings — procedural evidence
 # beyond what an automated scan can capture. The control pack will
@@ -98,12 +100,51 @@ violations contains v if {
 	}
 }
 
+# ── GCP Security Command Center ─────────────────────────────────────
+
+scc_subs := [r | some r in input.resources; r.type == "gcp.scc.subscription"]
+
+gcp_scanned if {
+	some r in input.resources
+	startswith(r.type, "gcp.")
+}
+
+default gcp_scanned := false
+
+has_active_scc if {
+	some s in scc_subs
+	s.attrs.is_active == true
+}
+
+violations contains v if {
+	gcp_scanned
+	count(scc_subs) == 0
+	v := {
+		"resource_type": "gcp.scc",
+		"resource_id":   "(project)",
+		"reason":        "no Security Command Center subscription evidence was collected for this project",
+	}
+}
+
+violations contains v if {
+	gcp_scanned
+	count(scc_subs) > 0
+	not has_active_scc
+	some s in scc_subs
+	v := {
+		"resource_type": s.type,
+		"resource_id":   s.id,
+		"reason":        "Security Command Center is not active for this project — no managed security event analysis pipeline",
+	}
+}
+
 # ── Applicability + outputs ─────────────────────────────────────────
 
 default applicable := false
 
 applicable if aws_scanned
 applicable if azure_scanned
+applicable if gcp_scanned
 
 default status := "not_applicable"
 default message := "No cloud resources in scan input."
