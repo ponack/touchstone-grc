@@ -64,5 +64,11 @@ func (Connector) Scan(ctx context.Context, cfgRaw, secretRaw json.RawMessage) (*
 	}
 	res.Resources = append(res.Resources, sqlInstances...)
 
+	serviceAccounts, err := scanServiceAccounts(ctx, cfg, sec)
+	if err != nil {
+		return nil, err
+	}
+	res.Resources = append(res.Resources, serviceAccounts...)
+
 	return res, nil
 }

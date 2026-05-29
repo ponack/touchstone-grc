@@ -3,6 +3,7 @@ package policy_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/ponack/touchstone/internal/frameworks/packs"
 	"github.com/ponack/touchstone/internal/policy"
@@ -458,6 +459,88 @@ func TestCC6_3_IgnoresExpiredAzureCredential(t *testing.T) {
 	}
 	if d.Status != "pass" {
 		t.Fatalf("status = %q, want pass (expired credentials are not findings)", d.Status)
+	}
+}
+
+// ── CC6.3 — GCP service account key rotation ────────────────────────────────
+
+func gcpSAKey(id, keyType, validAfter string) map[string]any {
+	return map[string]any{
+		"id":               id,
+		"key_type":         keyType,
+		"valid_after_time": validAfter,
+	}
+}
+
+func gcpServiceAccount(email string, keys []any) map[string]any {
+	return map[string]any{
+		"type": "gcp.iam.service_account",
+		"id":   "gcp-iam://acme-prod-001/serviceAccounts/" + email,
+		"attrs": map[string]any{
+			"email":        email,
+			"unique_id":    "111222333444555666777",
+			"display_name": "Test SA",
+			"disabled":     false,
+			"keys":         keys,
+		},
+	}
+}
+
+func TestCC6_3_PassesWhenGCPKeyFresh(t *testing.T) {
+	// Key minted yesterday — well within rotation window.
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	fresh := time.Now().Add(-24 * time.Hour).UTC().Format(time.RFC3339)
+	sa := gcpServiceAccount("scanner@acme.iam.gserviceaccount.com",
+		[]any{gcpSAKey("abc123", "USER_MANAGED", fresh)})
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc6_3.rego",
+		map[string]any{"resources": []any{sa}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "pass" {
+		t.Fatalf("status = %q, want pass; message=%q", d.Status, d.Message)
+	}
+}
+
+func TestCC6_3_FailsWhenGCPKeyOlderThanYear(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	stale := time.Now().Add(-400 * 24 * time.Hour).UTC().Format(time.RFC3339)
+	sa := gcpServiceAccount("legacy@acme.iam.gserviceaccount.com",
+		[]any{gcpSAKey("def456", "USER_MANAGED", stale)})
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc6_3.rego",
+		map[string]any{"resources": []any{sa}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "fail" {
+		t.Fatalf("status = %q, want fail", d.Status)
+	}
+}
+
+// System-managed keys are Google-rotated and out of scope for CC6.3.
+// The scanner should already filter them, but the rego must also
+// ignore any that slip through.
+func TestCC6_3_IgnoresSystemManagedGCPKey(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	stale := time.Now().Add(-1000 * 24 * time.Hour).UTC().Format(time.RFC3339)
+	sa := gcpServiceAccount("system-mgmt@acme.iam.gserviceaccount.com",
+		[]any{gcpSAKey("xyz", "SYSTEM_MANAGED", stale)})
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc6_3.rego",
+		map[string]any{"resources": []any{sa}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "pass" {
+		t.Fatalf("status = %q, want pass (system-managed keys ignored)", d.Status)
 	}
 }
 
