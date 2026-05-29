@@ -795,6 +795,129 @@ func TestCC6_7_PassesOnGCSBucket(t *testing.T) {
 	}
 }
 
+// ── CC6.6 — GCP VPC firewall ────────────────────────────────────────────────
+
+func gcpFirewallRule(protocol string, from, to int) map[string]any {
+	return map[string]any{
+		"protocol":  protocol,
+		"from_port": from,
+		"to_port":   to,
+	}
+}
+
+func gcpFirewall(name string, sources []any, ingress []any) map[string]any {
+	return map[string]any{
+		"type": "gcp.compute.firewall",
+		"id":   "gcp-compute://acme-prod-001/firewalls/" + name,
+		"attrs": map[string]any{
+			"name":          name,
+			"network":       "global/networks/default",
+			"priority":      1000,
+			"direction":     "INGRESS",
+			"source_ranges": sources,
+			"ingress_rules": ingress,
+		},
+	}
+}
+
+func TestCC6_6_FailsOnGCPFirewallWorldOpenSSH(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	fw := gcpFirewall("allow-ssh-world",
+		[]any{"0.0.0.0/0"},
+		[]any{gcpFirewallRule("tcp", 22, 22)},
+	)
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc6_6.rego",
+		map[string]any{"resources": []any{fw}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "fail" {
+		t.Fatalf("status = %q, want fail", d.Status)
+	}
+}
+
+func TestCC6_6_FailsOnGCPFirewallAllProtocolsWorldOpen(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	fw := gcpFirewall("kitchen-sink",
+		[]any{"0.0.0.0/0"},
+		[]any{gcpFirewallRule("all", 0, 65535)},
+	)
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc6_6.rego",
+		map[string]any{"resources": []any{fw}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "fail" {
+		t.Fatalf("status = %q, want fail", d.Status)
+	}
+}
+
+func TestCC6_6_FailsOnGCPFirewallRangeHitsSensitivePort(t *testing.T) {
+	// A range 20-30 covers SSH (22) — must fail even though the
+	// rule doesn't name port 22 directly.
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	fw := gcpFirewall("wide-range",
+		[]any{"0.0.0.0/0"},
+		[]any{gcpFirewallRule("tcp", 20, 30)},
+	)
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc6_6.rego",
+		map[string]any{"resources": []any{fw}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "fail" {
+		t.Fatalf("status = %q, want fail", d.Status)
+	}
+}
+
+func TestCC6_6_PassesOnGCPFirewallScopedToCorpRange(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	fw := gcpFirewall("allow-ssh-corp",
+		[]any{"10.0.0.0/8"},
+		[]any{gcpFirewallRule("tcp", 22, 22)},
+	)
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc6_6.rego",
+		map[string]any{"resources": []any{fw}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "pass" {
+		t.Fatalf("status = %q, want pass; message=%q", d.Status, d.Message)
+	}
+}
+
+// Public web traffic is legitimate — 443 from 0.0.0.0/0 must pass.
+func TestCC6_6_PassesOnGCPFirewallWorldOpenHTTPS(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	fw := gcpFirewall("allow-https",
+		[]any{"0.0.0.0/0"},
+		[]any{gcpFirewallRule("tcp", 443, 443)},
+	)
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc6_6.rego",
+		map[string]any{"resources": []any{fw}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "pass" {
+		t.Fatalf("status = %q, want pass; message=%q", d.Status, d.Message)
+	}
+}
+
 // ── CC6.6 — EC2 Security Groups ─────────────────────────────────────────────
 
 func sgResource(id string, rules []any) map[string]any {

@@ -7,6 +7,7 @@
 #   Azure Storage accounts    — allowBlobPublicAccess gate left open.
 #   Azure NSGs                — world-open inbound on sensitive ports / all-proto.
 #   GCP Cloud Storage buckets — publicAccessPrevention != enforced + public IAM bindings.
+#   GCP VPC firewall rules    — world-open ingress on sensitive ports / all-proto.
 #
 # Each source is independent — absence of one cloud's resources
 # doesn't suppress the others. The control becomes "applicable" once
@@ -216,6 +217,55 @@ gcp_bucket_public_iam_violations contains v if {
 	}
 }
 
+# ── GCP VPC firewall violations ─────────────────────────────────────
+
+# Source range covering the whole public IPv4 / IPv6 space.
+gcp_fw_world_open(rule_attrs) if {
+	some src in rule_attrs.source_ranges
+	src == "0.0.0.0/0"
+}
+gcp_fw_world_open(rule_attrs) if {
+	some src in rule_attrs.source_ranges
+	src == "::/0"
+}
+
+# Allow rule's flattened entry covers a sensitive admin/database port.
+gcp_fw_hits_sensitive_port(rule) if {
+	some p in sensitive_ports
+	rule.from_port <= p
+	rule.to_port >= p
+}
+
+# Ingress allow rule with world-open source and a flattened
+# (protocol, port_range) entry that includes a sensitive port.
+gcp_fw_sensitive_port_violations contains v if {
+	some r in input.resources
+	r.type == "gcp.compute.firewall"
+	gcp_fw_world_open(r.attrs)
+	some rule in r.attrs.ingress_rules
+	gcp_fw_hits_sensitive_port(rule)
+	v := {
+		"resource_type": r.type,
+		"resource_id":   r.id,
+		"reason":        sprintf("firewall rule %q allows %s/%d-%d from the public internet, covers sensitive ports", [r.attrs.name, rule.protocol, rule.from_port, rule.to_port]),
+	}
+}
+
+# Ingress allow rule with world-open source and an "all" protocol
+# entry — equivalent to AWS SG protocol "-1" / Azure NSG protocol "*".
+gcp_fw_all_protocols_violations contains v if {
+	some r in input.resources
+	r.type == "gcp.compute.firewall"
+	gcp_fw_world_open(r.attrs)
+	some rule in r.attrs.ingress_rules
+	rule.protocol == "all"
+	v := {
+		"resource_type": r.type,
+		"resource_id":   r.id,
+		"reason":        sprintf("firewall rule %q allows all protocols from the public internet", [r.attrs.name]),
+	}
+}
+
 # ── Combined finding set ────────────────────────────────────────────
 
 violations contains v if {
@@ -245,6 +295,12 @@ violations contains v if {
 violations contains v if {
 	some v in gcp_bucket_public_iam_violations
 }
+violations contains v if {
+	some v in gcp_fw_sensitive_port_violations
+}
+violations contains v if {
+	some v in gcp_fw_all_protocols_violations
+}
 
 applicable if {
 	some r in input.resources
@@ -265,6 +321,10 @@ applicable if {
 applicable if {
 	some r in input.resources
 	r.type == "gcp.storage.bucket"
+}
+applicable if {
+	some r in input.resources
+	r.type == "gcp.compute.firewall"
 }
 
 default applicable := false
