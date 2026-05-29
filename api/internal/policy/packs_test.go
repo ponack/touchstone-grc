@@ -1731,6 +1731,73 @@ func TestCC7_1_NotApplicableWhenNoAWS(t *testing.T) {
 	}
 }
 
+// ── CC6.8 + CC7.1 + CC7.3 — GCP Security Command Center ─────────────────────
+
+func gcpSCC(active bool, sources []any) map[string]any {
+	return map[string]any{
+		"type": "gcp.scc.subscription",
+		"id":   "gcp-scc://acme-prod-001/subscription",
+		"attrs": map[string]any{
+			"project":      "acme-prod-001",
+			"is_active":    active,
+			"source_count": len(sources),
+			"sources":      sources,
+		},
+	}
+}
+
+func runSCCTest(t *testing.T, controlPath string, sub map[string]any, wantStatus string) {
+	t.Helper()
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	d, err := e.Evaluate(context.Background(), controlPath,
+		map[string]any{"resources": []any{sub}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != wantStatus {
+		t.Fatalf("status = %q, want %q; message=%q", d.Status, wantStatus, d.Message)
+	}
+}
+
+func TestCC6_8_PassesWhenGCPSCCActive(t *testing.T) {
+	runSCCTest(t, "soc2_2017/cc6_8.rego",
+		gcpSCC(true, []any{"Event Threat Detection", "VM Threat Detection"}),
+		"pass")
+}
+
+func TestCC6_8_FailsWhenGCPSCCNotActive(t *testing.T) {
+	runSCCTest(t, "soc2_2017/cc6_8.rego",
+		gcpSCC(false, []any{}),
+		"fail")
+}
+
+func TestCC7_1_PassesWhenGCPSCCActive(t *testing.T) {
+	runSCCTest(t, "soc2_2017/cc7_1.rego",
+		gcpSCC(true, []any{"Security Health Analytics"}),
+		"pass")
+}
+
+func TestCC7_1_FailsWhenGCPSCCNotActive(t *testing.T) {
+	runSCCTest(t, "soc2_2017/cc7_1.rego",
+		gcpSCC(false, []any{}),
+		"fail")
+}
+
+func TestCC7_3_PassesWhenGCPSCCActive(t *testing.T) {
+	runSCCTest(t, "soc2_2017/cc7_3.rego",
+		gcpSCC(true, []any{"Event Threat Detection"}),
+		"pass")
+}
+
+func TestCC7_3_FailsWhenGCPSCCNotActive(t *testing.T) {
+	runSCCTest(t, "soc2_2017/cc7_3.rego",
+		gcpSCC(false, []any{}),
+		"fail")
+}
+
 // ── CC7.5 — RDS recovery procedures ─────────────────────────────────────────
 
 func rdsInstance(id string, backupDays int, deletionProtection bool) map[string]any {

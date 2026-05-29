@@ -1,11 +1,14 @@
 # SOC 2 2017 — CC6.8 Malicious software prevention.
 #
-# Evaluates two cloud-native threat-detection surfaces:
+# Evaluates three cloud-native threat-detection surfaces:
 #
 #   AWS GuardDuty                      Detector status per region
 #   Microsoft Defender for Cloud       At least one plan in Standard
 #                                      pricing tier (active) in the
 #                                      subscription
+#   GCP Security Command Center        Project-scoped SCC subscription
+#                                      reachable (Event Threat Detection,
+#                                      VM Threat Detection, etc.)
 #
 # Each cloud is evaluated independently. Future extensions (AWS
 # Inspector, Defender for Servers MDE configuration, SSM-deployed
@@ -98,12 +101,51 @@ violations contains v if {
 	}
 }
 
+# ── GCP Security Command Center ─────────────────────────────────────
+
+scc_subs := [r | some r in input.resources; r.type == "gcp.scc.subscription"]
+
+gcp_scanned if {
+	some r in input.resources
+	startswith(r.type, "gcp.")
+}
+
+default gcp_scanned := false
+
+has_active_scc if {
+	some s in scc_subs
+	s.attrs.is_active == true
+}
+
+violations contains v if {
+	gcp_scanned
+	count(scc_subs) == 0
+	v := {
+		"resource_type": "gcp.scc",
+		"resource_id":   "(project)",
+		"reason":        "no Security Command Center subscription evidence was collected for this project",
+	}
+}
+
+violations contains v if {
+	gcp_scanned
+	count(scc_subs) > 0
+	not has_active_scc
+	some s in scc_subs
+	v := {
+		"resource_type": s.type,
+		"resource_id":   s.id,
+		"reason":        "Security Command Center is not active for this project — no managed threat detection (Event Threat Detection, VM Threat Detection)",
+	}
+}
+
 # ── Applicability + outputs ─────────────────────────────────────────
 
 default applicable := false
 
 applicable if aws_scanned
 applicable if azure_scanned
+applicable if gcp_scanned
 
 default status := "not_applicable"
 default message := "No cloud resources in scan input."
