@@ -707,6 +707,94 @@ func TestCC6_7_PassesOnEncryptedAzureStorage(t *testing.T) {
 	}
 }
 
+// ── CC6.6 / CC6.7 — GCP Cloud Storage ───────────────────────────────────────
+
+func gcpBucket(name, publicAccessPrevention string, publicBindings []any) map[string]any {
+	return map[string]any{
+		"type": "gcp.storage.bucket",
+		"id":   "gcp-storage://acme-prod-001/buckets/" + name,
+		"attrs": map[string]any{
+			"name":                        name,
+			"project":                     "acme-prod-001",
+			"location":                    "US",
+			"public_access_prevention":    publicAccessPrevention,
+			"uniform_bucket_level_access": true,
+			"default_kms_key_name":        "",
+			"iam_public_bindings":         publicBindings,
+		},
+	}
+}
+
+func TestCC6_6_PassesOnLockedDownGCSBucket(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	b := gcpBucket("private-data", "enforced", []any{})
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc6_6.rego",
+		map[string]any{"resources": []any{b}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "pass" {
+		t.Fatalf("status = %q, want pass; message=%q", d.Status, d.Message)
+	}
+}
+
+func TestCC6_6_FailsOnGCSBucketWithGateOpen(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	b := gcpBucket("loose", "inherited", []any{})
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc6_6.rego",
+		map[string]any{"resources": []any{b}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "fail" {
+		t.Fatalf("status = %q, want fail", d.Status)
+	}
+}
+
+func TestCC6_6_FailsOnGCSBucketWithPublicIAMBinding(t *testing.T) {
+	// publicAccessPrevention is "enforced" but a stale public IAM
+	// binding survives. Both checks fire — the public binding is
+	// the actual exposure.
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	b := gcpBucket("legacy-public", "enforced", []any{"roles/storage.objectViewer:allUsers"})
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc6_6.rego",
+		map[string]any{"resources": []any{b}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "fail" {
+		t.Fatalf("status = %q, want fail", d.Status)
+	}
+}
+
+// GCS platform enforces TLS-only access + default at-rest encryption,
+// so the bucket flips CC6.7 to applicable but never to failing on its
+// own.
+func TestCC6_7_PassesOnGCSBucket(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	b := gcpBucket("private-data", "enforced", []any{})
+	d, err := e.Evaluate(context.Background(), "soc2_2017/cc6_7.rego",
+		map[string]any{"resources": []any{b}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "pass" {
+		t.Fatalf("status = %q, want pass; message=%q", d.Status, d.Message)
+	}
+}
+
 // ── CC6.6 — EC2 Security Groups ─────────────────────────────────────────────
 
 func sgResource(id string, rules []any) map[string]any {

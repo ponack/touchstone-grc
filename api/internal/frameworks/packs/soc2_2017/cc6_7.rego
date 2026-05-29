@@ -1,13 +1,18 @@
 # SOC 2 2017 — CC6.7 Restricted data transmission / encryption.
 #
-# Evaluates two surfaces:
+# Evaluates three surfaces:
 #
-#   AWS S3        every bucket must have default encryption enabled
-#                 (AES256, aws:kms, or aws:kms:dsse — anything but
-#                 "no encryption configured").
-#   Azure Storage every account must reject HTTP at the wire
-#                 (supportsHttpsTrafficOnly == true) and refuse
-#                 ciphers older than TLS 1.2.
+#   AWS S3              every bucket must have default encryption enabled
+#                       (AES256, aws:kms, or aws:kms:dsse — anything but
+#                       "no encryption configured").
+#   Azure Storage       every account must reject HTTP at the wire
+#                       (supportsHttpsTrafficOnly == true) and refuse
+#                       ciphers older than TLS 1.2.
+#   GCP Cloud Storage   platform enforces both default at-rest encryption
+#                       and HTTPS-only access — buckets surface here only
+#                       to anchor applicability. CMEK enforcement
+#                       (encryption.defaultKmsKeyName presence) is a
+#                       stricter follow-up control, tracked separately.
 #
 # Azure auto-encrypts every storage account at rest with platform-
 # managed keys — there is no "encryption disabled" failure mode to
@@ -75,6 +80,10 @@ applicable if {
 applicable if {
 	some r in input.resources
 	r.type == "azure.storage.account"
+}
+applicable if {
+	some r in input.resources
+	r.type == "gcp.storage.bucket"
 }
 
 default applicable := false
