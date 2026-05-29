@@ -40,5 +40,11 @@ func (Connector) Scan(ctx context.Context, cfgRaw, secretRaw json.RawMessage) (*
 	}
 	res.Resources = append(res.Resources, buckets...)
 
+	firewalls, err := scanFirewalls(ctx, cfg, sec)
+	if err != nil {
+		return nil, err
+	}
+	res.Resources = append(res.Resources, firewalls...)
+
 	return res, nil
 }
