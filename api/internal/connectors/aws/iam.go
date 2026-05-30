@@ -64,15 +64,25 @@ func buildUserResource(ctx context.Context, client *iam.Client, u iamtypes.User)
 		return connectors.Resource{}, fmt.Errorf("mfa devices: %w", err)
 	}
 
+	// password_last_used is the freshness signal CIS 1.12 needs for
+	// console credentials. ListUsers already returns it on the User
+	// struct, so no extra API call. Nil means "never used" — a real
+	// signal in its own right.
+	var passwordLastUsed any
+	if u.PasswordLastUsed != nil {
+		passwordLastUsed = aws.ToTime(u.PasswordLastUsed)
+	}
+
 	return connectors.Resource{
 		Type: "aws.iam.user",
 		ID:   aws.ToString(u.Arn),
 		Attrs: map[string]any{
-			"user_name":   userName,
-			"create_date": aws.ToTime(u.CreateDate),
-			"has_console": hasConsole,
-			"mfa_devices": mfaDevices,
-			"access_keys": accessKeys,
+			"user_name":          userName,
+			"create_date":        aws.ToTime(u.CreateDate),
+			"has_console":        hasConsole,
+			"password_last_used": passwordLastUsed,
+			"mfa_devices":        mfaDevices,
+			"access_keys":        accessKeys,
 		},
 	}, nil
 }
@@ -98,14 +108,39 @@ func listAccessKeys(ctx context.Context, client *iam.Client, userName *string) (
 			return nil, err
 		}
 		for _, k := range page.AccessKeyMetadata {
+			lastUsed, err := accessKeyLastUsed(ctx, client, k.AccessKeyId)
+			if err != nil {
+				slog.Warn("iam access key last-used lookup failed", "key", aws.ToString(k.AccessKeyId), "err", err)
+				// Carry on — the rego treats nil last_used_date the
+				// same as "never used", which is the right semantic
+				// when AWS can't tell us either way.
+				lastUsed = nil
+			}
 			out = append(out, map[string]any{
-				"access_key_id": aws.ToString(k.AccessKeyId),
-				"status":        string(k.Status),
-				"create_date":   aws.ToTime(k.CreateDate),
+				"access_key_id":  aws.ToString(k.AccessKeyId),
+				"status":         string(k.Status),
+				"create_date":    aws.ToTime(k.CreateDate),
+				"last_used_date": lastUsed,
 			})
 		}
 	}
 	return out, nil
+}
+
+// accessKeyLastUsed returns the LastUsedDate for an access key, or
+// nil when AWS reports "key was never used". The SDK signals never-
+// used by returning a zero LastUsedDate inside a populated
+// AccessKeyLastUsed struct; we collapse that into nil so the rego
+// rule's "no last-used timestamp" branch fires.
+func accessKeyLastUsed(ctx context.Context, client *iam.Client, accessKeyID *string) (any, error) {
+	resp, err := client.GetAccessKeyLastUsed(ctx, &iam.GetAccessKeyLastUsedInput{AccessKeyId: accessKeyID})
+	if err != nil {
+		return nil, err
+	}
+	if resp.AccessKeyLastUsed == nil || resp.AccessKeyLastUsed.LastUsedDate == nil {
+		return nil, nil
+	}
+	return aws.ToTime(resp.AccessKeyLastUsed.LastUsedDate), nil
 }
 
 func listMFADevices(ctx context.Context, client *iam.Client, userName *string) ([]map[string]any, error) {

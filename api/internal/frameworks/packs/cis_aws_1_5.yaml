@@ -50,3 +50,43 @@ controls:
       is configured or when password_reuse_prevention is below 24.
     severity: high
     policy_path: cis_aws_1_5/cis_1_9.rego
+
+  - code: "1.10"
+    title: Ensure MFA is enabled for all IAM users that have a console password
+    description: |
+      Every IAM user with a console login profile must carry at least
+      one MFA device. CIS 1.10 evaluates the same evidence as SOC 2
+      CC6.1's AWS surface, framed per-user instead of as a single
+      account-wide outcome.
+    severity: critical
+    policy_path: cis_aws_1_5/cis_1_10.rego
+
+  - code: "1.12"
+    title: Ensure credentials unused for 45 days or greater are disabled
+    description: |
+      Console passwords and Active access keys that have been
+      unused for more than 45 days (or never used after a 45-day
+      grace window since creation) must be disabled. CIS 1.12 covers
+      both credential types in one rule.
+    severity: high
+    policy_path: cis_aws_1_5/cis_1_12.rego
+
+  - code: "1.13"
+    title: Ensure there is only one active access key per IAM user
+    description: |
+      Each IAM user must have at most one currently-Active access key.
+      Two active keys indicate that rotation became "create a second
+      key" rather than "rotate the existing one", leaving the
+      superseded credential in circulation.
+    severity: medium
+    policy_path: cis_aws_1_5/cis_1_13.rego
+
+  - code: "1.14"
+    title: Ensure access keys are rotated every 90 days or less
+    description: |
+      Every Active IAM access key must have been created within the
+      last 90 days. Inactive keys are out of scope — they are not in
+      circulation. Same evidence as SOC 2 CC6.3 but a stricter
+      90-day threshold instead of 365.
+    severity: high
+    policy_path: cis_aws_1_5/cis_1_14.rego
