@@ -242,3 +242,40 @@ controls:
       later, so legacy unencrypted file systems must be migrated.
     severity: high
     policy_path: cis_aws_1_5/cis_2_4_1.rego
+
+  - code: "3.1"
+    title: Ensure CloudTrail is enabled in all regions
+    description: |
+      At least one CloudTrail trail must be multi-region AND
+      actively logging AND include global service events. Single-
+      region trails leave auditable gaps; "enabled but not logging"
+      trails accumulate config without capturing events.
+    severity: critical
+    policy_path: cis_aws_1_5/cis_3_1.rego
+
+  - code: "3.2"
+    title: Ensure CloudTrail log file validation is enabled
+    description: |
+      Log file validation generates per-hour digests CloudTrail
+      signs, making tampering with the underlying log objects
+      detectable. Every trail must have validation enabled.
+    severity: high
+    policy_path: cis_aws_1_5/cis_3_2.rego
+
+  - code: "3.4"
+    title: Ensure CloudTrail trails are integrated with CloudWatch Logs
+    description: |
+      Integrating with CloudWatch Logs enables real-time alerting on
+      CloudTrail events. Every trail must have a CloudWatch Logs log
+      group configured.
+    severity: medium
+    policy_path: cis_aws_1_5/cis_3_4.rego
+
+  - code: "3.7"
+    title: Ensure CloudTrail logs are encrypted at rest using KMS CMKs
+    description: |
+      Default S3 encryption (SSE-S3) is not enough for CIS — the
+      trail itself must reference a KMS Customer Master Key so log
+      objects encrypt with a key the operator controls.
+    severity: high
+    policy_path: cis_aws_1_5/cis_3_7.rego
