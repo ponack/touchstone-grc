@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/ponack/touchstone-grc/releases/tag/v0.5.0"><img src="https://img.shields.io/badge/release-v0.5.0-C49020?style=flat-square" alt="v0.5.0" /></a>
+  <a href="https://github.com/ponack/touchstone-grc/releases/tag/v0.5.1"><img src="https://img.shields.io/badge/release-v0.5.1-C49020?style=flat-square" alt="v0.5.1" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue?style=flat-square" alt="AGPL-3.0" /></a>
 </p>
 
@@ -20,7 +20,7 @@
 
 Sibling project to [Crucible IAP](https://github.com/ponack/crucible-iap). Standalone — runs without Crucible. Optional integration via public API in a later phase.
 
-> **Status:** v0.5.0 shipped 2026-05-29 — Phase 5 complete. **GCP joins AWS and Azure across every cloud-depth control** (CC6.1, CC6.6, CC6.7, CC6.8, CC7.1, CC7.2, CC7.3, CC7.5). All 11 of 11 SOC 2 2017 controls in the shipped pack run real evaluations: AWS + Azure + GCP cloud depth plus procedural evidence from GitHub (CC6.2) and Linear / Jira (CC7.4). The one remaining GCP gap — service-account key rotation for CC6.3 — is tracked as a follow-up.
+> **Status:** v0.5.1 shipped 2026-05-30 — GCP now covers **all 9 cloud-depth controls** (CC6.3 GCP service-account key rotation closes the last gap) and the new admin **Settings page** surfaces the running version, polls GitHub for new releases on a configurable cadence (daily / weekly / monthly / off), and shows an in-nav badge when an update is available.
 
 ## What it does
 
@@ -36,7 +36,7 @@ Sibling project to [Crucible IAP](https://github.com/ponack/crucible-iap). Stand
 | ------- | ------ | ---------- | ------------ | ---------- |
 | CC6.1 — Logical access controls | ✅ real | IAM users / MFA | AD users / MFA registration | Workspace users / 2-Step Verification |
 | CC6.2 — New user access provisioning | ✅ real | GitHub org 2FA requirement + members-without-2FA | (same — procedural) | (same — procedural) |
-| CC6.3 — User access revocation | ✅ real | IAM access key rotation | App registration secrets/certs | (future — SA key rotation) |
+| CC6.3 — User access revocation | ✅ real | IAM access key rotation | App registration secrets/certs | Service account user-managed key rotation |
 | CC6.6 — Network access controls | ✅ real | S3 public access + EC2 SG ingress | Storage public access + NSG ingress | Cloud Storage PAP + VPC firewall ingress |
 | CC6.7 — Restricted data transmission | ✅ real | S3 default encryption | Storage HTTPS-only + TLS 1.2+ | Cloud Storage (platform-enforced TLS + at-rest) |
 | CC6.8 — Malicious software prevention | ✅ real | GuardDuty | Defender for Cloud | Security Command Center |
@@ -70,8 +70,8 @@ docker compose up -d
 Or pull pre-built images directly:
 
 ```text
-ghcr.io/ponack/touchstone-api:0.5.0
-ghcr.io/ponack/touchstone-ui:0.5.0
+ghcr.io/ponack/touchstone-api:0.5.1
+ghcr.io/ponack/touchstone-ui:0.5.1
 ```
 
 Running behind an external reverse proxy (OPNsense, Traefik, nginx, separate Caddy)?
