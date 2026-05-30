@@ -2418,8 +2418,38 @@ func awsAccountSummary(rootKeysPresent, rootMFA bool) map[string]any {
 		"attrs": map[string]any{
 			"root_access_keys_present":   rootKeysPresent,
 			"root_mfa_enabled":           rootMFA,
+			"root_mfa_virtual":           false,
 			"root_signing_certs_present": false,
 		},
+	}
+}
+
+// awsAccountSummaryWithMFAType variant: lets tests specify whether
+// root MFA is virtual vs hardware. CIS 1.6 reads this directly.
+func awsAccountSummaryWithMFAType(rootMFAEnabled, rootMFAVirtual bool) map[string]any {
+	r := awsAccountSummary(false, rootMFAEnabled)
+	r["attrs"].(map[string]any)["root_mfa_virtual"] = rootMFAVirtual
+	return r
+}
+
+// awsServerCertificate builds an aws.iam.server_certificate resource.
+// Pass expiresIn=0 for "no expiration field". Negative durations
+// produce a cert that's already expired.
+func awsServerCertificate(name string, expiresIn time.Duration) map[string]any {
+	attrs := map[string]any{
+		"server_certificate_name": name,
+		"path":                    "/",
+		"upload_date":             time.Now().Add(-365 * 24 * time.Hour).UTC().Format(time.RFC3339),
+	}
+	if expiresIn == 0 {
+		attrs["expiration"] = nil
+	} else {
+		attrs["expiration"] = time.Now().Add(expiresIn).UTC().Format(time.RFC3339)
+	}
+	return map[string]any{
+		"type":  "aws.iam.server_certificate",
+		"id":    "arn:aws:iam::123456789012:server-certificate/" + name,
+		"attrs": attrs,
 	}
 }
 
@@ -2824,6 +2854,72 @@ func TestCIS_1_17_NotApplicableWithoutSummary(t *testing.T) {
 		t.Fatalf("NewEngine: %v", err)
 	}
 	d, err := e.Evaluate(context.Background(), "cis_aws_1_5/cis_1_17.rego",
+		map[string]any{"resources": []any{}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "not_applicable" {
+		t.Fatalf("status = %q, want not_applicable", d.Status)
+	}
+}
+
+// ── CIS AWS 1.5 — Section 1 batch 4 (1.6 + 1.19) ────────────────────────────
+
+// CIS 1.6 — hardware MFA on root
+
+func TestCIS_1_6_PassesWhenRootHasHardwareMFA(t *testing.T) {
+	// rootMFAEnabled=true + rootMFAVirtual=false ⇒ hardware MFA.
+	r := awsAccountSummaryWithMFAType(true, false)
+	if got := evalCIS(t, "cis_aws_1_5/cis_1_6.rego", r); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestCIS_1_6_FailsWhenRootMFAVirtual(t *testing.T) {
+	r := awsAccountSummaryWithMFAType(true, true)
+	if got := evalCIS(t, "cis_aws_1_5/cis_1_6.rego", r); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+func TestCIS_1_6_FailsWhenRootMFAMissing(t *testing.T) {
+	r := awsAccountSummaryWithMFAType(false, false)
+	if got := evalCIS(t, "cis_aws_1_5/cis_1_6.rego", r); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+// CIS 1.19 — expired IAM server certificates
+
+func TestCIS_1_19_PassesWhenCertsValid(t *testing.T) {
+	c := awsServerCertificate("prod-api", 60*24*time.Hour)
+	if got := evalCIS(t, "cis_aws_1_5/cis_1_19.rego", c); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestCIS_1_19_FailsOnExpiredCert(t *testing.T) {
+	c := awsServerCertificate("legacy-api", -30*24*time.Hour)
+	if got := evalCIS(t, "cis_aws_1_5/cis_1_19.rego", c); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+func TestCIS_1_19_PassesWhenExpirationMissing(t *testing.T) {
+	// Legacy uploads with no expiration field — pass rather than panic
+	// on a missing timestamp. Defensive against unusual scanner output.
+	c := awsServerCertificate("ancient-api", 0)
+	if got := evalCIS(t, "cis_aws_1_5/cis_1_19.rego", c); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestCIS_1_19_NotApplicableWhenNoCerts(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	d, err := e.Evaluate(context.Background(), "cis_aws_1_5/cis_1_19.rego",
 		map[string]any{"resources": []any{}})
 	if err != nil {
 		t.Fatalf("Evaluate: %v", err)
