@@ -3326,3 +3326,49 @@ func TestCIS_2_2_1_NotApplicableWithoutScan(t *testing.T) {
 		t.Fatalf("status = %q, want not_applicable", d.Status)
 	}
 }
+
+// ── CIS AWS 1.5 — Section 2.4 (EFS encryption) ──────────────────────────────
+
+func awsEFSFileSystem(id, name string, encrypted bool) map[string]any {
+	return map[string]any{
+		"type": "aws.efs.file_system",
+		"id":   "arn:aws:elasticfilesystem:us-east-1:123456789012:file-system/" + id,
+		"attrs": map[string]any{
+			"file_system_id":   id,
+			"name":             name,
+			"region":           "us-east-1",
+			"encrypted":        encrypted,
+			"kms_key_id":       "",
+			"life_cycle_state": "available",
+		},
+	}
+}
+
+func TestCIS_2_4_1_PassesWhenEFSEncrypted(t *testing.T) {
+	fs := awsEFSFileSystem("fs-1", "prod-shared", true)
+	if got := evalCIS(t, "cis_aws_1_5/cis_2_4_1.rego", fs); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestCIS_2_4_1_FailsWhenEFSUnencrypted(t *testing.T) {
+	fs := awsEFSFileSystem("fs-2", "legacy", false)
+	if got := evalCIS(t, "cis_aws_1_5/cis_2_4_1.rego", fs); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+func TestCIS_2_4_1_NotApplicableWithoutEFS(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	d, err := e.Evaluate(context.Background(), "cis_aws_1_5/cis_2_4_1.rego",
+		map[string]any{"resources": []any{}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "not_applicable" {
+		t.Fatalf("status = %q, want not_applicable", d.Status)
+	}
+}
