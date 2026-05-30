@@ -41,6 +41,12 @@ func scanIAMAccount(ctx context.Context, awsCfg aws.Config) ([]connectors.Resour
 	}
 	out = append(out, policy)
 
+	support, err := buildSupportAccessSummary(ctx, client)
+	if err != nil {
+		return nil, fmt.Errorf("iam:ListEntitiesForPolicy(AWSSupportAccess): %w", err)
+	}
+	out = append(out, support)
+
 	slog.Info("iam account scan complete", "resources", len(out))
 	return out, nil
 }
@@ -114,4 +120,43 @@ func intPtr(p *int32) int {
 		return 0
 	}
 	return int(*p)
+}
+
+// supportAccessPolicyARN is the AWS managed policy that grants the
+// minimum permissions needed to open AWS Support cases. CIS 1.17
+// requires a principal somewhere in the account to hold this
+// policy so support tickets can actually be filed.
+const supportAccessPolicyARN = "arn:aws:iam::aws:policy/AWSSupportAccess"
+
+// buildSupportAccessSummary counts the principals attached to the
+// AWSSupportAccess managed policy. A count of zero is the CIS 1.17
+// failure signal; the rego inspects the booleans + counts directly
+// rather than parsing principal lists.
+func buildSupportAccessSummary(ctx context.Context, client *iam.Client) (connectors.Resource, error) {
+	users := 0
+	groups := 0
+	roles := 0
+	pager := iam.NewListEntitiesForPolicyPaginator(client, &iam.ListEntitiesForPolicyInput{
+		PolicyArn: aws.String(supportAccessPolicyARN),
+	})
+	for pager.HasMorePages() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return connectors.Resource{}, err
+		}
+		users += len(page.PolicyUsers)
+		groups += len(page.PolicyGroups)
+		roles += len(page.PolicyRoles)
+	}
+	return connectors.Resource{
+		Type: "aws.iam.support_access_summary",
+		ID:   "aws-iam://account/support-access",
+		Attrs: map[string]any{
+			"policy_arn":             supportAccessPolicyARN,
+			"attached_users_count":   users,
+			"attached_groups_count":  groups,
+			"attached_roles_count":   roles,
+			"total_attachment_count": users + groups + roles,
+		},
+	}, nil
 }

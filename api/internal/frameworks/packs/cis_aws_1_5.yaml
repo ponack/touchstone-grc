@@ -90,3 +90,25 @@ controls:
       90-day threshold instead of 365.
     severity: high
     policy_path: cis_aws_1_5/cis_1_14.rego
+
+  - code: "1.15"
+    title: Ensure IAM Users Receive Permissions Only Through Groups
+    description: |
+      Permissions should flow to IAM users through group membership,
+      not via policies attached or inlined directly on the user. CIS
+      1.15 fails when any user carries a non-zero count of
+      attached_policies or inline_policies — even if the effective
+      access happens to be safe, the administrative pattern is what
+      the rule guards.
+    severity: medium
+    policy_path: cis_aws_1_5/cis_1_15.rego
+
+  - code: "1.17"
+    title: Ensure a support role has been created to manage incidents with AWS Support
+    description: |
+      At least one IAM principal (user, group, or role) must hold the
+      AWS managed AWSSupportAccess policy so support tickets can be
+      opened without escalating to root. CIS 1.17 fails when no
+      principal carries the policy.
+    severity: medium
+    policy_path: cis_aws_1_5/cis_1_17.rego

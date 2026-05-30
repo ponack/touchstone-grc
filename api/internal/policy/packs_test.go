@@ -2562,12 +2562,40 @@ func awsIAMUser(userName string, hasConsole bool, createdAgo, passwordAgo time.D
 		"type": "aws.iam.user",
 		"id":   "arn:aws:iam::123456789012:user/" + userName,
 		"attrs": map[string]any{
-			"user_name":          userName,
-			"create_date":        time.Now().Add(-createdAgo).UTC().Format(time.RFC3339),
-			"has_console":        hasConsole,
-			"password_last_used": pwLastUsed,
-			"mfa_devices":        []any{},
-			"access_keys":        keysCopy,
+			"user_name":               userName,
+			"create_date":             time.Now().Add(-createdAgo).UTC().Format(time.RFC3339),
+			"has_console":             hasConsole,
+			"password_last_used":      pwLastUsed,
+			"mfa_devices":             []any{},
+			"access_keys":             keysCopy,
+			"attached_policies_count": 0,
+			"inline_policies_count":   0,
+		},
+	}
+}
+
+// awsIAMUserWithDirectPolicies builds a user resource for CIS 1.15
+// where the count of directly-attached managed + inline policies is
+// non-zero.
+func awsIAMUserWithDirectPolicies(userName string, attachedCount, inlineCount int) map[string]any {
+	u := awsIAMUser(userName, false, 24*time.Hour, 0, nil)
+	u["attrs"].(map[string]any)["attached_policies_count"] = attachedCount
+	u["attrs"].(map[string]any)["inline_policies_count"] = inlineCount
+	return u
+}
+
+// awsSupportAccessSummary builds the aws.iam.support_access_summary
+// resource for CIS 1.17. totalAttachments=0 is the failure signal.
+func awsSupportAccessSummary(users, groups, roles int) map[string]any {
+	return map[string]any{
+		"type": "aws.iam.support_access_summary",
+		"id":   "aws-iam://account/support-access",
+		"attrs": map[string]any{
+			"policy_arn":             "arn:aws:iam::aws:policy/AWSSupportAccess",
+			"attached_users_count":   users,
+			"attached_groups_count":  groups,
+			"attached_roles_count":   roles,
+			"total_attachment_count": users + groups + roles,
 		},
 	}
 }
@@ -2726,5 +2754,81 @@ func TestCIS_1_14_IgnoresStaleInactiveKey(t *testing.T) {
 	u := awsIAMUser("retired", false, 365*24*time.Hour, 0, []map[string]any{k})
 	if got := evalCIS(t, "cis_aws_1_5/cis_1_14.rego", u); got != "not_applicable" {
 		t.Fatalf("status = %q, want not_applicable", got)
+	}
+}
+
+// ── CIS AWS 1.5 — Section 1 misc (batch 3) ──────────────────────────────────
+
+// CIS 1.15 — users get permissions only through groups
+
+func TestCIS_1_15_PassesWhenNoDirectPolicies(t *testing.T) {
+	u := awsIAMUserWithDirectPolicies("alice", 0, 0)
+	if got := evalCIS(t, "cis_aws_1_5/cis_1_15.rego", u); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestCIS_1_15_FailsOnAttachedPolicy(t *testing.T) {
+	u := awsIAMUserWithDirectPolicies("bob", 1, 0)
+	if got := evalCIS(t, "cis_aws_1_5/cis_1_15.rego", u); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+func TestCIS_1_15_FailsOnInlinePolicy(t *testing.T) {
+	u := awsIAMUserWithDirectPolicies("carol", 0, 1)
+	if got := evalCIS(t, "cis_aws_1_5/cis_1_15.rego", u); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+func TestCIS_1_15_NotApplicableWithoutUsers(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	d, err := e.Evaluate(context.Background(), "cis_aws_1_5/cis_1_15.rego",
+		map[string]any{"resources": []any{}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "not_applicable" {
+		t.Fatalf("status = %q, want not_applicable", d.Status)
+	}
+}
+
+// CIS 1.17 — support role exists
+
+func TestCIS_1_17_PassesWhenPolicyAttachedToAnyPrincipal(t *testing.T) {
+	for _, s := range []map[string]any{
+		awsSupportAccessSummary(1, 0, 0),
+		awsSupportAccessSummary(0, 1, 0),
+		awsSupportAccessSummary(0, 0, 1),
+	} {
+		if got := evalCIS(t, "cis_aws_1_5/cis_1_17.rego", s); got != "pass" {
+			t.Fatalf("status = %q, want pass", got)
+		}
+	}
+}
+
+func TestCIS_1_17_FailsWhenNoAttachments(t *testing.T) {
+	s := awsSupportAccessSummary(0, 0, 0)
+	if got := evalCIS(t, "cis_aws_1_5/cis_1_17.rego", s); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+func TestCIS_1_17_NotApplicableWithoutSummary(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	d, err := e.Evaluate(context.Background(), "cis_aws_1_5/cis_1_17.rego",
+		map[string]any{"resources": []any{}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "not_applicable" {
+		t.Fatalf("status = %q, want not_applicable", d.Status)
 	}
 }
