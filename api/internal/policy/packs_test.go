@@ -2540,3 +2540,191 @@ func TestCIS_1_9_FailsWhenNoPolicyConfigured(t *testing.T) {
 		t.Fatalf("status = %q, want fail", got)
 	}
 }
+
+// ── CIS AWS 1.5 — user-level IAM rules (batch 2) ────────────────────────────
+
+// awsIAMUser builds a CIS-shaped aws.iam.user resource. lastUsedAgo
+// and passwordAgo are durations expressing how long ago each
+// timestamp was; passing 0 means "never used" (nil in the attrs).
+// createdAgo positions the user (and each key's create_date) far
+// enough in the past to push past CIS 1.12's 45-day grace window
+// when set to >45 days.
+func awsIAMUser(userName string, hasConsole bool, createdAgo, passwordAgo time.Duration, keys []map[string]any) map[string]any {
+	var pwLastUsed any
+	if hasConsole && passwordAgo > 0 {
+		pwLastUsed = time.Now().Add(-passwordAgo).UTC().Format(time.RFC3339)
+	}
+	keysCopy := make([]any, 0, len(keys))
+	for _, k := range keys {
+		keysCopy = append(keysCopy, k)
+	}
+	return map[string]any{
+		"type": "aws.iam.user",
+		"id":   "arn:aws:iam::123456789012:user/" + userName,
+		"attrs": map[string]any{
+			"user_name":          userName,
+			"create_date":        time.Now().Add(-createdAgo).UTC().Format(time.RFC3339),
+			"has_console":        hasConsole,
+			"password_last_used": pwLastUsed,
+			"mfa_devices":        []any{},
+			"access_keys":        keysCopy,
+		},
+	}
+}
+
+// awsIAMAccessKey builds an access key entry shaped for CIS 1.12 /
+// 1.13 / 1.14. createdAgo / lastUsedAgo are durations ago; passing
+// 0 for lastUsedAgo means "never used".
+func awsIAMAccessKey(id, status string, createdAgo, lastUsedAgo time.Duration) map[string]any {
+	var lastUsed any
+	if lastUsedAgo > 0 {
+		lastUsed = time.Now().Add(-lastUsedAgo).UTC().Format(time.RFC3339)
+	}
+	return map[string]any{
+		"access_key_id":  id,
+		"status":         status,
+		"create_date":    time.Now().Add(-createdAgo).UTC().Format(time.RFC3339),
+		"last_used_date": lastUsed,
+	}
+}
+
+func awsIAMUserWithMFA(userName string, hasConsole bool, mfaSerials []string, keys []map[string]any) map[string]any {
+	mfa := make([]any, 0, len(mfaSerials))
+	for _, s := range mfaSerials {
+		mfa = append(mfa, map[string]any{"serial_number": s})
+	}
+	u := awsIAMUser(userName, hasConsole, 365*24*time.Hour, 24*time.Hour, keys)
+	u["attrs"].(map[string]any)["mfa_devices"] = mfa
+	return u
+}
+
+// CIS 1.10 — MFA on console users
+
+func TestCIS_1_10_PassesWhenAllConsoleUsersHaveMFA(t *testing.T) {
+	u := awsIAMUserWithMFA("alice", true, []string{"arn:aws:iam::1:mfa/alice"}, nil)
+	if got := evalCIS(t, "cis_aws_1_5/cis_1_10.rego", u); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestCIS_1_10_FailsWhenConsoleUserMissingMFA(t *testing.T) {
+	u := awsIAMUserWithMFA("bob", true, nil, nil)
+	if got := evalCIS(t, "cis_aws_1_5/cis_1_10.rego", u); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+func TestCIS_1_10_NotApplicableWhenNoConsoleUsers(t *testing.T) {
+	u := awsIAMUserWithMFA("svc", false, nil, nil)
+	if got := evalCIS(t, "cis_aws_1_5/cis_1_10.rego", u); got != "not_applicable" {
+		t.Fatalf("status = %q, want not_applicable", got)
+	}
+}
+
+// CIS 1.12 — stale credentials
+
+func TestCIS_1_12_PassesOnFreshConsoleAndKey(t *testing.T) {
+	// Console used yesterday, key used yesterday → both within window.
+	key := awsIAMAccessKey("AKIA1", "Active", 200*24*time.Hour, 24*time.Hour)
+	u := awsIAMUser("alice", true, 200*24*time.Hour, 24*time.Hour, []map[string]any{key})
+	if got := evalCIS(t, "cis_aws_1_5/cis_1_12.rego", u); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestCIS_1_12_FailsOnStaleConsolePassword(t *testing.T) {
+	u := awsIAMUser("bob", true, 200*24*time.Hour, 90*24*time.Hour, nil)
+	if got := evalCIS(t, "cis_aws_1_5/cis_1_12.rego", u); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+func TestCIS_1_12_FailsOnNeverUsedConsolePasswordPastGrace(t *testing.T) {
+	// Console enabled 100 days ago, never used → fail.
+	u := awsIAMUser("ghost", true, 100*24*time.Hour, 0, nil)
+	if got := evalCIS(t, "cis_aws_1_5/cis_1_12.rego", u); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+func TestCIS_1_12_PassesOnNeverUsedConsoleInsideGrace(t *testing.T) {
+	// Just created — still inside the 45-day grace window.
+	u := awsIAMUser("newhire", true, 10*24*time.Hour, 0, nil)
+	if got := evalCIS(t, "cis_aws_1_5/cis_1_12.rego", u); got != "not_applicable" {
+		t.Fatalf("status = %q, want not_applicable", got)
+	}
+}
+
+func TestCIS_1_12_FailsOnStaleAccessKey(t *testing.T) {
+	key := awsIAMAccessKey("AKIA2", "Active", 200*24*time.Hour, 60*24*time.Hour)
+	u := awsIAMUser("svc", false, 200*24*time.Hour, 0, []map[string]any{key})
+	if got := evalCIS(t, "cis_aws_1_5/cis_1_12.rego", u); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+func TestCIS_1_12_IgnoresInactiveAccessKey(t *testing.T) {
+	// Inactive key never used in 200 days — still fine, it's not in
+	// circulation.
+	key := awsIAMAccessKey("AKIA3", "Inactive", 200*24*time.Hour, 0)
+	u := awsIAMUser("svc", false, 200*24*time.Hour, 0, []map[string]any{key})
+	if got := evalCIS(t, "cis_aws_1_5/cis_1_12.rego", u); got != "not_applicable" {
+		t.Fatalf("status = %q, want not_applicable", got)
+	}
+}
+
+// CIS 1.13 — one active key per user
+
+func TestCIS_1_13_PassesWithSingleActiveKey(t *testing.T) {
+	k := awsIAMAccessKey("AKIA1", "Active", 24*time.Hour, 24*time.Hour)
+	u := awsIAMUser("alice", false, 24*time.Hour, 0, []map[string]any{k})
+	if got := evalCIS(t, "cis_aws_1_5/cis_1_13.rego", u); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestCIS_1_13_FailsWithTwoActiveKeys(t *testing.T) {
+	k1 := awsIAMAccessKey("AKIA1", "Active", 24*time.Hour, 24*time.Hour)
+	k2 := awsIAMAccessKey("AKIA2", "Active", 24*time.Hour, 24*time.Hour)
+	u := awsIAMUser("rotator", false, 24*time.Hour, 0, []map[string]any{k1, k2})
+	if got := evalCIS(t, "cis_aws_1_5/cis_1_13.rego", u); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+func TestCIS_1_13_PassesWithOneActiveOneInactive(t *testing.T) {
+	// One active, one inactive — within the rule's intent.
+	k1 := awsIAMAccessKey("AKIA1", "Active", 24*time.Hour, 24*time.Hour)
+	k2 := awsIAMAccessKey("AKIA2", "Inactive", 24*time.Hour, 24*time.Hour)
+	u := awsIAMUser("rotator", false, 24*time.Hour, 0, []map[string]any{k1, k2})
+	if got := evalCIS(t, "cis_aws_1_5/cis_1_13.rego", u); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+// CIS 1.14 — key rotation within 90 days
+
+func TestCIS_1_14_PassesWithFreshKey(t *testing.T) {
+	k := awsIAMAccessKey("AKIA1", "Active", 30*24*time.Hour, 24*time.Hour)
+	u := awsIAMUser("alice", false, 30*24*time.Hour, 0, []map[string]any{k})
+	if got := evalCIS(t, "cis_aws_1_5/cis_1_14.rego", u); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestCIS_1_14_FailsWithStaleKey(t *testing.T) {
+	k := awsIAMAccessKey("AKIA1", "Active", 120*24*time.Hour, 24*time.Hour)
+	u := awsIAMUser("legacy", false, 120*24*time.Hour, 0, []map[string]any{k})
+	if got := evalCIS(t, "cis_aws_1_5/cis_1_14.rego", u); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+func TestCIS_1_14_IgnoresStaleInactiveKey(t *testing.T) {
+	// Inactive keys aren't in circulation; CIS 1.14 only flags Active.
+	k := awsIAMAccessKey("AKIA1", "Inactive", 365*24*time.Hour, 0)
+	u := awsIAMUser("retired", false, 365*24*time.Hour, 0, []map[string]any{k})
+	if got := evalCIS(t, "cis_aws_1_5/cis_1_14.rego", u); got != "not_applicable" {
+		t.Fatalf("status = %q, want not_applicable", got)
+	}
+}
