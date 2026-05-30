@@ -194,3 +194,31 @@ controls:
       access exists today.
     severity: critical
     policy_path: cis_aws_1_5/cis_2_1_5.rego
+
+  - code: "2.3.1"
+    title: Ensure that encryption-at-rest is enabled for RDS Instances
+    description: |
+      Every RDS instance must carry storage_encrypted=true. The flag
+      is one-shot at instance creation — it cannot be enabled in
+      place. Touchstone enumerates replicas and serverless DBs too;
+      CIS scopes the rule to all of them.
+    severity: high
+    policy_path: cis_aws_1_5/cis_2_3_1.rego
+
+  - code: "2.3.2"
+    title: Ensure Auto Minor Version Upgrade feature is Enabled for RDS Instances
+    description: |
+      Minor versions ship security patches; auto-upgrade keeps
+      instances on a supported, patched baseline without scheduled
+      maintenance windows being missed.
+    severity: medium
+    policy_path: cis_aws_1_5/cis_2_3_2.rego
+
+  - code: "2.3.3"
+    title: Ensure that public access is not given to RDS Instance
+    description: |
+      publicly_accessible=true assigns a public IP to the instance.
+      RDS databases should never be directly internet-facing — front
+      them with a bastion / VPN / application tier instead.
+    severity: critical
+    policy_path: cis_aws_1_5/cis_2_3_3.rego

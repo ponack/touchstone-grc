@@ -1918,14 +1918,28 @@ func rdsInstance(id string, backupDays int, deletionProtection bool) map[string]
 		"type": "aws.rds.db_instance",
 		"id":   "arn:aws:rds:us-east-1:123456789012:db:" + id,
 		"attrs": map[string]any{
-			"db_instance_identifier":  id,
-			"engine":                  "postgres",
-			"region":                  "us-east-1",
-			"backup_retention_period": backupDays,
-			"deletion_protection":     deletionProtection,
-			"storage_encrypted":       true,
+			"db_instance_identifier":     id,
+			"engine":                     "postgres",
+			"region":                     "us-east-1",
+			"backup_retention_period":    backupDays,
+			"deletion_protection":        deletionProtection,
+			"storage_encrypted":          true,
+			"publicly_accessible":        false,
+			"auto_minor_version_upgrade": true,
 		},
 	}
+}
+
+// rdsInstanceWithCIS overrides the three CIS Section 2.3 flags on
+// top of the rdsInstance defaults. Sweeps test variants for 2.3.1 /
+// 2.3.2 / 2.3.3 without duplicating the boilerplate attrs.
+func rdsInstanceWithCIS(id string, encrypted, autoUpgrade, publiclyAccessible bool) map[string]any {
+	r := rdsInstance(id, 14, true)
+	attrs := r["attrs"].(map[string]any)
+	attrs["storage_encrypted"] = encrypted
+	attrs["auto_minor_version_upgrade"] = autoUpgrade
+	attrs["publicly_accessible"] = publiclyAccessible
+	return r
 }
 
 func TestCC7_5_PassesWhenAllDBsRecoverable(t *testing.T) {
@@ -3162,6 +3176,77 @@ func TestCIS_2_1_NotApplicableWhenNoBuckets(t *testing.T) {
 		"cis_aws_1_5/cis_2_1_2.rego",
 		"cis_aws_1_5/cis_2_1_3.rego",
 		"cis_aws_1_5/cis_2_1_5.rego",
+	} {
+		e, err := policy.NewEngine(packs.FS)
+		if err != nil {
+			t.Fatalf("NewEngine: %v", err)
+		}
+		d, err := e.Evaluate(context.Background(), rego,
+			map[string]any{"resources": []any{}})
+		if err != nil {
+			t.Fatalf("Evaluate %s: %v", rego, err)
+		}
+		if d.Status != "not_applicable" {
+			t.Fatalf("%s status = %q, want not_applicable", rego, d.Status)
+		}
+	}
+}
+
+// ── CIS AWS 1.5 — Section 2.3 (RDS) ─────────────────────────────────────────
+
+// CIS 2.3.1 — storage_encrypted
+
+func TestCIS_2_3_1_PassesWhenEncrypted(t *testing.T) {
+	r := rdsInstanceWithCIS("prod-db", true, true, false)
+	if got := evalCIS(t, "cis_aws_1_5/cis_2_3_1.rego", r); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestCIS_2_3_1_FailsWhenNotEncrypted(t *testing.T) {
+	r := rdsInstanceWithCIS("legacy-db", false, true, false)
+	if got := evalCIS(t, "cis_aws_1_5/cis_2_3_1.rego", r); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+// CIS 2.3.2 — auto minor version upgrade
+
+func TestCIS_2_3_2_PassesWhenAutoUpgradeOn(t *testing.T) {
+	r := rdsInstanceWithCIS("prod-db", true, true, false)
+	if got := evalCIS(t, "cis_aws_1_5/cis_2_3_2.rego", r); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestCIS_2_3_2_FailsWhenAutoUpgradeOff(t *testing.T) {
+	r := rdsInstanceWithCIS("locked-db", true, false, false)
+	if got := evalCIS(t, "cis_aws_1_5/cis_2_3_2.rego", r); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+// CIS 2.3.3 — not publicly accessible
+
+func TestCIS_2_3_3_PassesWhenPrivate(t *testing.T) {
+	r := rdsInstanceWithCIS("prod-db", true, true, false)
+	if got := evalCIS(t, "cis_aws_1_5/cis_2_3_3.rego", r); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestCIS_2_3_3_FailsWhenPubliclyAccessible(t *testing.T) {
+	r := rdsInstanceWithCIS("exposed-db", true, true, true)
+	if got := evalCIS(t, "cis_aws_1_5/cis_2_3_3.rego", r); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+func TestCIS_2_3_NotApplicableWhenNoRDS(t *testing.T) {
+	for _, rego := range []string{
+		"cis_aws_1_5/cis_2_3_1.rego",
+		"cis_aws_1_5/cis_2_3_2.rego",
+		"cis_aws_1_5/cis_2_3_3.rego",
 	} {
 		e, err := policy.NewEngine(packs.FS)
 		if err != nil {
