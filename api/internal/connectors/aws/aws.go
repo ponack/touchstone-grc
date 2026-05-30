@@ -74,53 +74,29 @@ func (Connector) Scan(ctx context.Context, cfgRaw, secretRaw json.RawMessage) (*
 
 	res := &connectors.ScanResult{}
 
-	iamRes, err := scanIAM(ctx, awsCfg)
-	if err != nil {
-		return nil, err
+	// Sub-scans collected as a flat slice of closures so adding new
+	// surfaces stays a one-line append rather than another error-
+	// handling block — keeps Scan below the gocyclo threshold as the
+	// catalog grows.
+	subscans := []func() ([]connectors.Resource, error){
+		func() ([]connectors.Resource, error) { return scanIAM(ctx, awsCfg) },
+		func() ([]connectors.Resource, error) { return scanIAMAccount(ctx, awsCfg) },
+		func() ([]connectors.Resource, error) { return scanIAMPolicies(ctx, awsCfg) },
+		func() ([]connectors.Resource, error) { return scanAccessAnalyzer(ctx, awsCfg, cfg.Regions) },
+		func() ([]connectors.Resource, error) { return scanS3(ctx, awsCfg) },
+		func() ([]connectors.Resource, error) { return scanEC2(ctx, awsCfg, cfg.Regions) },
+		func() ([]connectors.Resource, error) { return scanCloudTrail(ctx, awsCfg, cfg.Regions) },
+		func() ([]connectors.Resource, error) { return scanGuardDuty(ctx, awsCfg, cfg.Regions) },
+		func() ([]connectors.Resource, error) { return scanSecurityHub(ctx, awsCfg, cfg.Regions) },
+		func() ([]connectors.Resource, error) { return scanRDS(ctx, awsCfg, cfg.Regions) },
 	}
-	res.Resources = append(res.Resources, iamRes...)
-
-	iamAcctRes, err := scanIAMAccount(ctx, awsCfg)
-	if err != nil {
-		return nil, err
+	for _, fn := range subscans {
+		rs, err := fn()
+		if err != nil {
+			return nil, err
+		}
+		res.Resources = append(res.Resources, rs...)
 	}
-	res.Resources = append(res.Resources, iamAcctRes...)
-
-	s3Res, err := scanS3(ctx, awsCfg)
-	if err != nil {
-		return nil, err
-	}
-	res.Resources = append(res.Resources, s3Res...)
-
-	ec2Res, err := scanEC2(ctx, awsCfg, cfg.Regions)
-	if err != nil {
-		return nil, err
-	}
-	res.Resources = append(res.Resources, ec2Res...)
-
-	ctRes, err := scanCloudTrail(ctx, awsCfg, cfg.Regions)
-	if err != nil {
-		return nil, err
-	}
-	res.Resources = append(res.Resources, ctRes...)
-
-	gdRes, err := scanGuardDuty(ctx, awsCfg, cfg.Regions)
-	if err != nil {
-		return nil, err
-	}
-	res.Resources = append(res.Resources, gdRes...)
-
-	shRes, err := scanSecurityHub(ctx, awsCfg, cfg.Regions)
-	if err != nil {
-		return nil, err
-	}
-	res.Resources = append(res.Resources, shRes...)
-
-	rdsRes, err := scanRDS(ctx, awsCfg, cfg.Regions)
-	if err != nil {
-		return nil, err
-	}
-	res.Resources = append(res.Resources, rdsRes...)
 
 	return res, nil
 }

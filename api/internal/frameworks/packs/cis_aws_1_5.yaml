@@ -113,6 +113,18 @@ controls:
     severity: medium
     policy_path: cis_aws_1_5/cis_1_15.rego
 
+  - code: "1.16"
+    title: Ensure IAM policies that allow full "*:*" administrative privileges are not attached
+    description: |
+      Customer-managed policies that grant Action="*" + Resource="*"
+      and that are currently attached to any principal are CIS 1.16
+      findings. AWS-managed policies (AdministratorAccess and
+      friends) are intentionally out of scope per CIS — the rule
+      targets customer-defined admin policies that should be
+      retired.
+    severity: high
+    policy_path: cis_aws_1_5/cis_1_16.rego
+
   - code: "1.17"
     title: Ensure a support role has been created to manage incidents with AWS Support
     description: |
@@ -132,3 +144,14 @@ controls:
       separately.
     severity: medium
     policy_path: cis_aws_1_5/cis_1_19.rego
+
+  - code: "1.21"
+    title: Ensure IAM Access Analyzer is enabled for all regions
+    description: |
+      Every region in the operator's scope must carry at least one
+      active IAM Access Analyzer. The analyzer surfaces unintended
+      external sharing of IAM-managed resources (S3 buckets, KMS
+      keys, IAM roles, …). CIS 1.21 fails when any configured
+      region lacks an active analyzer.
+    severity: high
+    policy_path: cis_aws_1_5/cis_1_21.rego
