@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
@@ -47,6 +48,12 @@ func scanIAMAccount(ctx context.Context, awsCfg aws.Config) ([]connectors.Resour
 	}
 	out = append(out, support)
 
+	certs, err := listServerCertificates(ctx, client)
+	if err != nil {
+		return nil, fmt.Errorf("iam:ListServerCertificates: %w", err)
+	}
+	out = append(out, certs...)
+
 	slog.Info("iam account scan complete", "resources", len(out))
 	return out, nil
 }
@@ -61,15 +68,82 @@ func buildAccountSummary(ctx context.Context, client *iam.Client) (connectors.Re
 	rootMFAEnabled := int(resp.SummaryMap["AccountMFAEnabled"])
 	rootSigningCerts := int(resp.SummaryMap["AccountSigningCertificatesPresent"])
 
+	// CIS 1.6 needs to know whether root's MFA is virtual (fails) or
+	// hardware (passes). ListVirtualMFADevices.User points at the
+	// associated principal; root's ARN ends with ":root". When the
+	// root user shows up in the list, root MFA is virtual.
+	rootVirtualMFA, err := rootHasVirtualMFA(ctx, client)
+	if err != nil {
+		return connectors.Resource{}, fmt.Errorf("iam:ListVirtualMFADevices: %w", err)
+	}
+
 	return connectors.Resource{
 		Type: "aws.iam.account_summary",
 		ID:   "aws-iam://account/summary",
 		Attrs: map[string]any{
 			"root_access_keys_present":   rootAccessKeys > 0,
 			"root_mfa_enabled":           rootMFAEnabled == 1,
+			"root_mfa_virtual":           rootVirtualMFA,
 			"root_signing_certs_present": rootSigningCerts > 0,
 		},
 	}, nil
+}
+
+// rootHasVirtualMFA scans the account's virtual MFA devices and
+// returns true when one is bound to the root user. CIS 1.6 reads
+// the inverse — "is hardware MFA in use" — but checking for
+// virtual-on-root is the directly observable signal.
+func rootHasVirtualMFA(ctx context.Context, client *iam.Client) (bool, error) {
+	pager := iam.NewListVirtualMFADevicesPaginator(client, &iam.ListVirtualMFADevicesInput{})
+	for pager.HasMorePages() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return false, err
+		}
+		for _, dev := range page.VirtualMFADevices {
+			if dev.User == nil {
+				continue
+			}
+			arn := aws.ToString(dev.User.Arn)
+			if strings.HasSuffix(arn, ":root") {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
+}
+
+// listServerCertificates emits one aws.iam.server_certificate
+// resource per IAM-uploaded SSL/TLS cert. CIS 1.19 fails when any
+// cert is past expiration; tracked separately from ACM, which has
+// its own certificate inventory.
+func listServerCertificates(ctx context.Context, client *iam.Client) ([]connectors.Resource, error) {
+	out := []connectors.Resource{}
+	pager := iam.NewListServerCertificatesPaginator(client, &iam.ListServerCertificatesInput{})
+	for pager.HasMorePages() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, c := range page.ServerCertificateMetadataList {
+			attrs := map[string]any{
+				"server_certificate_name": aws.ToString(c.ServerCertificateName),
+				"path":                    aws.ToString(c.Path),
+				"upload_date":             aws.ToTime(c.UploadDate),
+			}
+			if c.Expiration != nil {
+				attrs["expiration"] = aws.ToTime(c.Expiration)
+			} else {
+				attrs["expiration"] = nil
+			}
+			out = append(out, connectors.Resource{
+				Type:  "aws.iam.server_certificate",
+				ID:    aws.ToString(c.Arn),
+				Attrs: attrs,
+			})
+		}
+	}
+	return out, nil
 }
 
 func buildPasswordPolicy(ctx context.Context, client *iam.Client) (connectors.Resource, error) {

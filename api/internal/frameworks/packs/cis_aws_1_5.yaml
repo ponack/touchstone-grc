@@ -25,11 +25,21 @@ controls:
     title: Ensure MFA is enabled for the 'root' user account
     description: |
       The root user must require multi-factor authentication. Virtual
-      MFA satisfies CIS 1.5; CIS 1.6 (hardware MFA) is stricter and
-      ships in a follow-up batch once the scanner enumerates MFA
-      device types.
+      MFA satisfies CIS 1.5; CIS 1.6 tightens the requirement to
+      hardware MFA only.
     severity: critical
     policy_path: cis_aws_1_5/cis_1_5.rego
+
+  - code: "1.6"
+    title: Ensure hardware MFA is enabled for the 'root' user account
+    description: |
+      Stricter sibling of CIS 1.5. The root user's MFA must be a
+      hardware device — virtual MFA does not satisfy this rule.
+      Touchstone reads ListVirtualMFADevices and flags the account
+      when the root user is bound to a virtual device or has no MFA
+      at all.
+    severity: critical
+    policy_path: cis_aws_1_5/cis_1_6.rego
 
   - code: "1.8"
     title: Ensure IAM password policy requires minimum length of 14 or greater
@@ -112,3 +122,13 @@ controls:
       principal carries the policy.
     severity: medium
     policy_path: cis_aws_1_5/cis_1_17.rego
+
+  - code: "1.19"
+    title: Ensure that all the expired SSL/TLS certificates stored in AWS IAM are removed
+    description: |
+      Any IAM-uploaded server certificate whose expiration has
+      already passed is a CIS 1.19 finding. Certs with no expiration
+      field (legacy uploads) pass; ACM-managed certs are tracked
+      separately.
+    severity: medium
+    policy_path: cis_aws_1_5/cis_1_19.rego
