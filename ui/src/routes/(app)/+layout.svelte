@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
+	import { getVersion } from '$lib/api/system';
 	import { auth } from '$lib/stores/auth.svelte';
 	import { toasts } from '$lib/stores/toasts.svelte';
 	import {
@@ -10,11 +11,13 @@
 		FileCheck,
 		BookOpen,
 		ShieldOff,
+		Settings,
 		LogOut
 	} from 'lucide-svelte';
 
 	let { children } = $props();
 	let ready = $state(false);
+	let updateAvailable = $state(false);
 
 	$effect(() => {
 		(async () => {
@@ -24,6 +27,17 @@
 				return;
 			}
 			ready = true;
+			// Best-effort fetch — the badge stays hidden if /version
+			// fails (e.g. backend mid-restart). Admins still see the
+			// full state on the Settings page.
+			if (me.is_admin) {
+				try {
+					const v = await getVersion();
+					updateAvailable = v.update_available;
+				} catch {
+					updateAvailable = false;
+				}
+			}
 		})();
 	});
 
@@ -36,7 +50,7 @@
 		}
 	}
 
-	const navItems = [
+	const baseNavItems = [
 		{ href: '/', label: 'Dashboard', icon: LayoutDashboard, exact: true },
 		{ href: '/connectors', label: 'Connectors', icon: Cable },
 		{ href: '/scans', label: 'Scans', icon: ScanLine },
@@ -44,6 +58,12 @@
 		{ href: '/frameworks', label: 'Frameworks', icon: BookOpen },
 		{ href: '/exceptions', label: 'Exceptions', icon: ShieldOff }
 	];
+
+	const navItems = $derived(
+		auth.me?.is_admin
+			? [...baseNavItems, { href: '/settings', label: 'Settings', icon: Settings }]
+			: baseNavItems
+	);
 
 	function isActive(href: string, exact = false): boolean {
 		const path = page.url.pathname;
@@ -65,6 +85,7 @@
 				<ul class="space-y-1">
 					{#each navItems as item (item.href)}
 						{@const active = isActive(item.href, item.exact)}
+						{@const showBadge = item.href === '/settings' && updateAvailable}
 						<li>
 							<a
 								href={item.href}
@@ -74,7 +95,14 @@
 								style={active ? 'background-color: var(--accent-muted);' : ''}
 							>
 								<item.icon class="h-4 w-4" />
-								{item.label}
+								<span class="flex-1">{item.label}</span>
+								{#if showBadge}
+									<span
+										class="inline-block h-1.5 w-1.5 rounded-full bg-amber-400"
+										aria-label="Update available"
+										title="Update available"
+									></span>
+								{/if}
 							</a>
 						</li>
 					{/each}

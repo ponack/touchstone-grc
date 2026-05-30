@@ -11,6 +11,7 @@ export interface Me {
 	org_id: string;
 	email: string;
 	name: string;
+	is_admin: boolean;
 }
 
 export async function getAuthConfig(): Promise<AuthConfig> {
