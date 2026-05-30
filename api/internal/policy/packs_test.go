@@ -1240,8 +1240,22 @@ func compliantTrail() map[string]any {
 			"include_global_service_events": true,
 			"log_file_validation_enabled":   true,
 			"is_logging":                    true,
+			"s3_bucket_name":                "audit-logs-prod",
+			"kms_key_id":                    "arn:aws:kms:us-east-1:123456789012:key/abc",
+			"cloudwatch_logs_log_group_arn": "arn:aws:logs:us-east-1:123456789012:log-group:CloudTrail/Audit:*",
 		},
 	}
+}
+
+// trailWith builds a CloudTrail trail resource with explicit knobs
+// for the Section 3 batch 1 rules. Defaults match compliantTrail()
+// unless overridden by the variadic option helpers.
+func trailWith(opts ...func(map[string]any)) map[string]any {
+	t := compliantTrail()
+	for _, opt := range opts {
+		opt(t["attrs"].(map[string]any))
+	}
+	return t
 }
 
 // Add one IAM user so aws_scanned fires (CC7.2 only applies when we
@@ -3370,5 +3384,101 @@ func TestCIS_2_4_1_NotApplicableWithoutEFS(t *testing.T) {
 	}
 	if d.Status != "not_applicable" {
 		t.Fatalf("status = %q, want not_applicable", d.Status)
+	}
+}
+
+// ── CIS AWS 1.5 — Section 3 batch 1 (CloudTrail attr rules) ─────────────────
+
+func evalCISTrail(t *testing.T, rego string, trail map[string]any) string {
+	t.Helper()
+	return evalCIS(t, rego, trail)
+}
+
+// CIS 3.1 — multi-region trail actively logging w/ global events
+
+func TestCIS_3_1_PassesWhenCompliantTrailExists(t *testing.T) {
+	if got := evalCISTrail(t, "cis_aws_1_5/cis_3_1.rego", compliantTrail()); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestCIS_3_1_FailsWhenSingleRegion(t *testing.T) {
+	bad := trailWith(func(a map[string]any) { a["is_multi_region"] = false })
+	if got := evalCISTrail(t, "cis_aws_1_5/cis_3_1.rego", bad); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+func TestCIS_3_1_FailsWhenNotLogging(t *testing.T) {
+	bad := trailWith(func(a map[string]any) { a["is_logging"] = false })
+	if got := evalCISTrail(t, "cis_aws_1_5/cis_3_1.rego", bad); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+// CIS 3.2 — log file validation
+
+func TestCIS_3_2_PassesWhenValidationOn(t *testing.T) {
+	if got := evalCISTrail(t, "cis_aws_1_5/cis_3_2.rego", compliantTrail()); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestCIS_3_2_FailsWhenValidationOff(t *testing.T) {
+	bad := trailWith(func(a map[string]any) { a["log_file_validation_enabled"] = false })
+	if got := evalCISTrail(t, "cis_aws_1_5/cis_3_2.rego", bad); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+// CIS 3.4 — CloudWatch Logs integration
+
+func TestCIS_3_4_PassesWhenLogGroupSet(t *testing.T) {
+	if got := evalCISTrail(t, "cis_aws_1_5/cis_3_4.rego", compliantTrail()); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestCIS_3_4_FailsWhenLogGroupEmpty(t *testing.T) {
+	bad := trailWith(func(a map[string]any) { a["cloudwatch_logs_log_group_arn"] = "" })
+	if got := evalCISTrail(t, "cis_aws_1_5/cis_3_4.rego", bad); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+// CIS 3.7 — KMS CMK encryption
+
+func TestCIS_3_7_PassesWhenKMSKeySet(t *testing.T) {
+	if got := evalCISTrail(t, "cis_aws_1_5/cis_3_7.rego", compliantTrail()); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestCIS_3_7_FailsWhenKMSKeyEmpty(t *testing.T) {
+	bad := trailWith(func(a map[string]any) { a["kms_key_id"] = "" })
+	if got := evalCISTrail(t, "cis_aws_1_5/cis_3_7.rego", bad); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+func TestCIS_3_NotApplicableWithoutTrails(t *testing.T) {
+	for _, rego := range []string{
+		"cis_aws_1_5/cis_3_1.rego",
+		"cis_aws_1_5/cis_3_2.rego",
+		"cis_aws_1_5/cis_3_4.rego",
+		"cis_aws_1_5/cis_3_7.rego",
+	} {
+		e, err := policy.NewEngine(packs.FS)
+		if err != nil {
+			t.Fatalf("NewEngine: %v", err)
+		}
+		d, err := e.Evaluate(context.Background(), rego,
+			map[string]any{"resources": []any{}})
+		if err != nil {
+			t.Fatalf("Evaluate %s: %v", rego, err)
+		}
+		if d.Status != "not_applicable" {
+			t.Fatalf("%s status = %q, want not_applicable", rego, d.Status)
+		}
 	}
 }
