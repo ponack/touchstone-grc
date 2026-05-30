@@ -64,6 +64,11 @@ func buildUserResource(ctx context.Context, client *iam.Client, u iamtypes.User)
 		return connectors.Resource{}, fmt.Errorf("mfa devices: %w", err)
 	}
 
+	attachedCount, inlineCount, err := userDirectPolicyCounts(ctx, client, u.UserName)
+	if err != nil {
+		return connectors.Resource{}, fmt.Errorf("user policies: %w", err)
+	}
+
 	// password_last_used is the freshness signal CIS 1.12 needs for
 	// console credentials. ListUsers already returns it on the User
 	// struct, so no extra API call. Nil means "never used" — a real
@@ -77,14 +82,43 @@ func buildUserResource(ctx context.Context, client *iam.Client, u iamtypes.User)
 		Type: "aws.iam.user",
 		ID:   aws.ToString(u.Arn),
 		Attrs: map[string]any{
-			"user_name":          userName,
-			"create_date":        aws.ToTime(u.CreateDate),
-			"has_console":        hasConsole,
-			"password_last_used": passwordLastUsed,
-			"mfa_devices":        mfaDevices,
-			"access_keys":        accessKeys,
+			"user_name":               userName,
+			"create_date":             aws.ToTime(u.CreateDate),
+			"has_console":             hasConsole,
+			"password_last_used":      passwordLastUsed,
+			"mfa_devices":             mfaDevices,
+			"access_keys":             accessKeys,
+			"attached_policies_count": attachedCount,
+			"inline_policies_count":   inlineCount,
 		},
 	}, nil
+}
+
+// userDirectPolicyCounts returns how many managed and inline policies
+// are attached directly to the user (i.e. not via a group). CIS 1.15
+// expects both counts to be zero — permissions should flow only
+// through group membership.
+func userDirectPolicyCounts(ctx context.Context, client *iam.Client, userName *string) (int, int, error) {
+	attached := 0
+	attachedPager := iam.NewListAttachedUserPoliciesPaginator(client, &iam.ListAttachedUserPoliciesInput{UserName: userName})
+	for attachedPager.HasMorePages() {
+		page, err := attachedPager.NextPage(ctx)
+		if err != nil {
+			return 0, 0, err
+		}
+		attached += len(page.AttachedPolicies)
+	}
+
+	inline := 0
+	inlinePager := iam.NewListUserPoliciesPaginator(client, &iam.ListUserPoliciesInput{UserName: userName})
+	for inlinePager.HasMorePages() {
+		page, err := inlinePager.NextPage(ctx)
+		if err != nil {
+			return 0, 0, err
+		}
+		inline += len(page.PolicyNames)
+	}
+	return attached, inline, nil
 }
 
 func userHasConsoleAccess(ctx context.Context, client *iam.Client, userName *string) (bool, error) {
