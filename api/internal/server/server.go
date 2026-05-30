@@ -62,11 +62,21 @@ func Run(ctx context.Context, cfg *config.Config, pool *pgxpool.Pool) error {
 
 	v1 := e.Group("/api/v1", auth.RequireUser(cfg.SecretKey))
 	v1.GET("/me", func(c echo.Context) error {
+		userID := c.Get(auth.ContextUserID).(uuid.UUID)
+		var isAdmin bool
+		// is_admin lookup keeps the session JWT claims minimal —
+		// admin promotion takes effect on the next /me call rather
+		// than waiting for a re-login.
+		if err := pool.QueryRow(c.Request().Context(),
+			`SELECT is_admin FROM users WHERE id = $1`, userID).Scan(&isAdmin); err != nil {
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "admin lookup failed"})
+		}
 		return c.JSON(http.StatusOK, map[string]any{
-			"user_id": c.Get(auth.ContextUserID).(uuid.UUID),
-			"org_id":  c.Get(auth.ContextOrgID).(uuid.UUID),
-			"email":   c.Get(auth.ContextEmail),
-			"name":    c.Get(auth.ContextName),
+			"user_id":  userID,
+			"org_id":   c.Get(auth.ContextOrgID).(uuid.UUID),
+			"email":    c.Get(auth.ContextEmail),
+			"name":     c.Get(auth.ContextName),
+			"is_admin": isAdmin,
 		})
 	})
 
