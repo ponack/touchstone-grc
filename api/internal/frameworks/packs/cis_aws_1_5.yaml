@@ -233,3 +233,12 @@ controls:
       them with a bastion / VPN / application tier instead.
     severity: critical
     policy_path: cis_aws_1_5/cis_2_3_3.rego
+
+  - code: "2.4.1"
+    title: Ensure that encryption is enabled for EFS file systems
+    description: |
+      Every EFS file system must be created with encryption at rest.
+      The flag is one-shot at FS creation — it cannot be enabled
+      later, so legacy unencrypted file systems must be migrated.
+    severity: high
+    policy_path: cis_aws_1_5/cis_2_4_1.rego
