@@ -3262,3 +3262,67 @@ func TestCIS_2_3_NotApplicableWhenNoRDS(t *testing.T) {
 		}
 	}
 }
+
+// ── CIS AWS 1.5 — Section 2.2 (EBS encryption by default) ───────────────────
+
+func awsEBSEncryptionRegion(region string, enabled bool) map[string]any {
+	return map[string]any{
+		"type": "aws.ec2.ebs_encryption_region",
+		"id":   "aws-ec2-ebs-encryption://" + region,
+		"attrs": map[string]any{
+			"region":  region,
+			"enabled": enabled,
+		},
+	}
+}
+
+func TestCIS_2_2_1_PassesWhenEveryRegionEnabled(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	d, err := e.Evaluate(context.Background(), "cis_aws_1_5/cis_2_2_1.rego",
+		map[string]any{"resources": []any{
+			awsEBSEncryptionRegion("us-east-1", true),
+			awsEBSEncryptionRegion("eu-west-1", true),
+		}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "pass" {
+		t.Fatalf("status = %q, want pass; message=%q", d.Status, d.Message)
+	}
+}
+
+func TestCIS_2_2_1_FailsWhenAnyRegionDisabled(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	d, err := e.Evaluate(context.Background(), "cis_aws_1_5/cis_2_2_1.rego",
+		map[string]any{"resources": []any{
+			awsEBSEncryptionRegion("us-east-1", true),
+			awsEBSEncryptionRegion("eu-west-1", false),
+		}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "fail" {
+		t.Fatalf("status = %q, want fail", d.Status)
+	}
+}
+
+func TestCIS_2_2_1_NotApplicableWithoutScan(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	d, err := e.Evaluate(context.Background(), "cis_aws_1_5/cis_2_2_1.rego",
+		map[string]any{"resources": []any{}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "not_applicable" {
+		t.Fatalf("status = %q, want not_applicable", d.Status)
+	}
+}

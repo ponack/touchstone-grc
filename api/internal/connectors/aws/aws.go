@@ -85,6 +85,7 @@ func (Connector) Scan(ctx context.Context, cfgRaw, secretRaw json.RawMessage) (*
 		func() ([]connectors.Resource, error) { return scanAccessAnalyzer(ctx, awsCfg, cfg.Regions) },
 		func() ([]connectors.Resource, error) { return scanS3(ctx, awsCfg) },
 		func() ([]connectors.Resource, error) { return scanEC2(ctx, awsCfg, cfg.Regions) },
+		func() ([]connectors.Resource, error) { return scanEBSEncryption(ctx, awsCfg, cfg.Regions) },
 		func() ([]connectors.Resource, error) { return scanCloudTrail(ctx, awsCfg, cfg.Regions) },
 		func() ([]connectors.Resource, error) { return scanGuardDuty(ctx, awsCfg, cfg.Regions) },
 		func() ([]connectors.Resource, error) { return scanSecurityHub(ctx, awsCfg, cfg.Regions) },

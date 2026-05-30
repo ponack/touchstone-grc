@@ -195,6 +195,17 @@ controls:
     severity: critical
     policy_path: cis_aws_1_5/cis_2_1_5.rego
 
+  - code: "2.2.1"
+    title: Ensure EBS volume encryption is enabled in all regions
+    description: |
+      The account+region-scoped "EBS encryption by default" flag must
+      be enabled in every region in scope. When on, every new EBS
+      volume in that region is encrypted regardless of the creator's
+      intent. Existing unencrypted volumes are not retroactively
+      re-encrypted by this flag.
+    severity: high
+    policy_path: cis_aws_1_5/cis_2_2_1.rego
+
   - code: "2.3.1"
     title: Ensure that encryption-at-rest is enabled for RDS Instances
     description: |
