@@ -2432,6 +2432,36 @@ func awsAccountSummaryWithMFAType(rootMFAEnabled, rootMFAVirtual bool) map[strin
 	return r
 }
 
+// awsCustomerManagedPolicy builds an aws.iam.customer_managed_policy
+// resource shaped for CIS 1.16.
+func awsCustomerManagedPolicy(name string, attachmentCount int, isAdmin bool) map[string]any {
+	return map[string]any{
+		"type": "aws.iam.customer_managed_policy",
+		"id":   "arn:aws:iam::123456789012:policy/" + name,
+		"attrs": map[string]any{
+			"policy_name":      name,
+			"arn":              "arn:aws:iam::123456789012:policy/" + name,
+			"default_version":  "v1",
+			"attachment_count": attachmentCount,
+			"is_admin":         isAdmin,
+		},
+	}
+}
+
+// awsAccessAnalyzerRegion builds an aws.accessanalyzer.region resource
+// shaped for CIS 1.21.
+func awsAccessAnalyzerRegion(region string, count int, hasActive bool) map[string]any {
+	return map[string]any{
+		"type": "aws.accessanalyzer.region",
+		"id":   "aws-accessanalyzer://" + region,
+		"attrs": map[string]any{
+			"region":              region,
+			"analyzer_count":      count,
+			"has_active_analyzer": hasActive,
+		},
+	}
+}
+
 // awsServerCertificate builds an aws.iam.server_certificate resource.
 // Pass expiresIn=0 for "no expiration field". Negative durations
 // produce a cert that's already expired.
@@ -2920,6 +2950,101 @@ func TestCIS_1_19_NotApplicableWhenNoCerts(t *testing.T) {
 		t.Fatalf("NewEngine: %v", err)
 	}
 	d, err := e.Evaluate(context.Background(), "cis_aws_1_5/cis_1_19.rego",
+		map[string]any{"resources": []any{}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "not_applicable" {
+		t.Fatalf("status = %q, want not_applicable", d.Status)
+	}
+}
+
+// ── CIS AWS 1.5 — Section 1 batch 5 (1.16 + 1.21) ───────────────────────────
+
+// CIS 1.16 — no admin "*:*" customer-managed policies attached
+
+func TestCIS_1_16_PassesWhenAdminPolicyUnattached(t *testing.T) {
+	// Admin policy exists but is_attached=0 → no risk → pass.
+	p := awsCustomerManagedPolicy("LegacyAdmin", 0, true)
+	if got := evalCIS(t, "cis_aws_1_5/cis_1_16.rego", p); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestCIS_1_16_PassesWhenAttachedPolicyNotAdmin(t *testing.T) {
+	// Attached but non-admin → pass.
+	p := awsCustomerManagedPolicy("ReadOnlyS3", 3, false)
+	if got := evalCIS(t, "cis_aws_1_5/cis_1_16.rego", p); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestCIS_1_16_FailsWhenAdminPolicyAttached(t *testing.T) {
+	p := awsCustomerManagedPolicy("BadAdmin", 1, true)
+	if got := evalCIS(t, "cis_aws_1_5/cis_1_16.rego", p); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+func TestCIS_1_16_NotApplicableWithoutPolicies(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	d, err := e.Evaluate(context.Background(), "cis_aws_1_5/cis_1_16.rego",
+		map[string]any{"resources": []any{}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "not_applicable" {
+		t.Fatalf("status = %q, want not_applicable", d.Status)
+	}
+}
+
+// CIS 1.21 — Access Analyzer enabled in every configured region
+
+func TestCIS_1_21_PassesWhenAllRegionsCovered(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	d, err := e.Evaluate(context.Background(), "cis_aws_1_5/cis_1_21.rego",
+		map[string]any{"resources": []any{
+			awsAccessAnalyzerRegion("us-east-1", 1, true),
+			awsAccessAnalyzerRegion("eu-west-1", 1, true),
+		}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "pass" {
+		t.Fatalf("status = %q, want pass; message=%q", d.Status, d.Message)
+	}
+}
+
+func TestCIS_1_21_FailsWhenAnyRegionMissingAnalyzer(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	d, err := e.Evaluate(context.Background(), "cis_aws_1_5/cis_1_21.rego",
+		map[string]any{"resources": []any{
+			awsAccessAnalyzerRegion("us-east-1", 1, true),
+			awsAccessAnalyzerRegion("eu-west-1", 0, false),
+		}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "fail" {
+		t.Fatalf("status = %q, want fail", d.Status)
+	}
+}
+
+func TestCIS_1_21_NotApplicableWithoutAccessAnalyzerScan(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	d, err := e.Evaluate(context.Background(), "cis_aws_1_5/cis_1_21.rego",
 		map[string]any{"resources": []any{}})
 	if err != nil {
 		t.Fatalf("Evaluate: %v", err)
