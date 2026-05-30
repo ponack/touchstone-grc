@@ -2,6 +2,7 @@ package aws
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -51,6 +52,7 @@ func buildBucketResource(ctx context.Context, client *s3.Client, b s3types.Bucke
 	publicByPolicy := readPolicyStatusIsPublic(ctx, client, name)
 	enc := readEncryption(ctx, client, name)
 	ver := readVersioning(ctx, client, name)
+	httpsOnly := readBucketEnforcesHTTPSOnly(ctx, client, name)
 
 	return connectors.Resource{
 		Type: "aws.s3.bucket",
@@ -65,6 +67,7 @@ func buildBucketResource(ctx context.Context, client *s3.Client, b s3types.Bucke
 			"encryption":            enc,
 			"versioning_enabled":    ver.enabled,
 			"versioning_mfa_delete": ver.mfaDelete,
+			"enforces_https_only":   httpsOnly,
 		},
 	}, nil
 }
@@ -177,4 +180,101 @@ func readVersioning(ctx context.Context, client *s3.Client, name string) version
 		enabled:   out.Status == s3types.BucketVersioningStatusEnabled,
 		mfaDelete: out.MFADelete == s3types.MFADeleteStatusEnabled,
 	}
+}
+
+// ── Bucket policy: HTTPS-only enforcement (CIS 2.1.2) ────────────────────────
+
+// readBucketEnforcesHTTPSOnly returns true when the bucket policy
+// contains at least one Deny statement that fires on aws:SecureTransport=false
+// and covers the bucket's actions broadly enough to plausibly block
+// HTTP traffic. Missing policy = no enforcement = false.
+func readBucketEnforcesHTTPSOnly(ctx context.Context, client *s3.Client, name string) bool {
+	out, err := client.GetBucketPolicy(ctx, &s3.GetBucketPolicyInput{Bucket: &name})
+	if err != nil {
+		var ae smithy.APIError
+		if !errors.As(err, &ae) || ae.ErrorCode() != "NoSuchBucketPolicy" {
+			slog.Warn("s3 GetBucketPolicy failed", "bucket", name, "err", err)
+		}
+		return false
+	}
+	if out.Policy == nil {
+		return false
+	}
+	ok, err := bucketPolicyEnforcesHTTPSOnly([]byte(aws.ToString(out.Policy)))
+	if err != nil {
+		slog.Warn("s3 bucket policy parse failed", "bucket", name, "err", err)
+		return false
+	}
+	return ok
+}
+
+// bucketPolicyEnforcesHTTPSOnly is the pure-Go testable core: parse
+// the document and return true when at least one statement Denies
+// requests where aws:SecureTransport is false.
+func bucketPolicyEnforcesHTTPSOnly(doc []byte) (bool, error) {
+	var parsed struct {
+		Statement json.RawMessage `json:"Statement"`
+	}
+	if err := json.Unmarshal(doc, &parsed); err != nil {
+		return false, fmt.Errorf("parse bucket policy: %w", err)
+	}
+
+	type policyStatement struct {
+		Effect    string                                `json:"Effect"`
+		Condition map[string]map[string]json.RawMessage `json:"Condition"`
+	}
+
+	var statements []policyStatement
+	if len(parsed.Statement) > 0 && parsed.Statement[0] == '[' {
+		if err := json.Unmarshal(parsed.Statement, &statements); err != nil {
+			return false, fmt.Errorf("parse statement array: %w", err)
+		}
+	} else {
+		var single policyStatement
+		if err := json.Unmarshal(parsed.Statement, &single); err != nil {
+			return false, fmt.Errorf("parse statement object: %w", err)
+		}
+		statements = append(statements, single)
+	}
+
+	for _, s := range statements {
+		if s.Effect != "Deny" {
+			continue
+		}
+		boolCond, ok := s.Condition["Bool"]
+		if !ok {
+			continue
+		}
+		raw, ok := boolCond["aws:SecureTransport"]
+		if !ok {
+			continue
+		}
+		if rawConditionIsFalse(raw) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// rawConditionIsFalse reports whether a Condition RHS is the literal
+// false / "false" / ["false"]. IAM accepts all three shapes in the
+// JSON document.
+func rawConditionIsFalse(raw json.RawMessage) bool {
+	var s string
+	if err := json.Unmarshal(raw, &s); err == nil {
+		return s == "false"
+	}
+	var b bool
+	if err := json.Unmarshal(raw, &b); err == nil {
+		return !b
+	}
+	var arr []string
+	if err := json.Unmarshal(raw, &arr); err == nil {
+		for _, v := range arr {
+			if v == "false" {
+				return true
+			}
+		}
+	}
+	return false
 }
