@@ -24,6 +24,7 @@ import (
 	"github.com/ponack/touchstone/internal/frameworks"
 	"github.com/ponack/touchstone/internal/queue"
 	"github.com/ponack/touchstone/internal/scans"
+	"github.com/ponack/touchstone/internal/updates"
 )
 
 // Run starts the Echo HTTP server and blocks until ctx is cancelled.
@@ -80,6 +81,16 @@ func Run(ctx context.Context, cfg *config.Config, pool *pgxpool.Pool) error {
 	evidence.NewHandler(pool).Register(v1)
 	exceptions.NewHandler(pool).Register(v1)
 	exports.NewHandler(pool).Register(v1)
+
+	updatesStore := updates.NewStore(pool)
+	updatesPoller := updates.NewPoller(updatesStore)
+	updatesHandler := updates.NewHandler(updatesStore, updatesPoller)
+	updatesHandler.RegisterUser(v1)
+	admin := v1.Group("", auth.RequireAdmin(pool))
+	updatesHandler.RegisterAdmin(admin)
+	go func() {
+		_ = updatesPoller.Run(ctx)
+	}()
 
 	go func() {
 		<-ctx.Done()
