@@ -80,6 +80,12 @@ func (Connector) Scan(ctx context.Context, cfgRaw, secretRaw json.RawMessage) (*
 	}
 	res.Resources = append(res.Resources, iamRes...)
 
+	iamAcctRes, err := scanIAMAccount(ctx, awsCfg)
+	if err != nil {
+		return nil, err
+	}
+	res.Resources = append(res.Resources, iamAcctRes...)
+
 	s3Res, err := scanS3(ctx, awsCfg)
 	if err != nil {
 		return nil, err

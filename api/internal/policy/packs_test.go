@@ -2408,3 +2408,135 @@ func TestCC7_4_PassesWhenBothSourcesHealthy(t *testing.T) {
 		t.Fatalf("status = %q, want pass; message=%q", d.Status, d.Message)
 	}
 }
+
+// ── CIS AWS 1.5 — account-level IAM rules (batch 1) ─────────────────────────
+
+func awsAccountSummary(rootKeysPresent, rootMFA bool) map[string]any {
+	return map[string]any{
+		"type": "aws.iam.account_summary",
+		"id":   "aws-iam://account/summary",
+		"attrs": map[string]any{
+			"root_access_keys_present":   rootKeysPresent,
+			"root_mfa_enabled":           rootMFA,
+			"root_signing_certs_present": false,
+		},
+	}
+}
+
+func awsPasswordPolicy(configured bool, minLen, reusePrev int) map[string]any {
+	attrs := map[string]any{"configured": configured}
+	if configured {
+		attrs["minimum_password_length"] = minLen
+		attrs["password_reuse_prevention"] = reusePrev
+		attrs["require_symbols"] = true
+		attrs["require_numbers"] = true
+		attrs["require_uppercase_characters"] = true
+		attrs["require_lowercase_characters"] = true
+		attrs["allow_users_to_change_password"] = true
+		attrs["expire_passwords"] = false
+		attrs["max_password_age"] = 0
+		attrs["hard_expiry"] = false
+	}
+	return map[string]any{
+		"type":  "aws.iam.password_policy",
+		"id":    "aws-iam://account/password-policy",
+		"attrs": attrs,
+	}
+}
+
+func evalCIS(t *testing.T, path string, resource map[string]any) string {
+	t.Helper()
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	d, err := e.Evaluate(context.Background(), path,
+		map[string]any{"resources": []any{resource}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	return d.Status
+}
+
+// CIS 1.4
+
+func TestCIS_1_4_PassesWhenRootHasNoKeys(t *testing.T) {
+	if got := evalCIS(t, "cis_aws_1_5/cis_1_4.rego", awsAccountSummary(false, true)); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestCIS_1_4_FailsWhenRootHasKey(t *testing.T) {
+	if got := evalCIS(t, "cis_aws_1_5/cis_1_4.rego", awsAccountSummary(true, true)); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+func TestCIS_1_4_NotApplicableWhenNoAWSScan(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	d, err := e.Evaluate(context.Background(), "cis_aws_1_5/cis_1_4.rego",
+		map[string]any{"resources": []any{}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "not_applicable" {
+		t.Fatalf("status = %q, want not_applicable", d.Status)
+	}
+}
+
+// CIS 1.5
+
+func TestCIS_1_5_PassesWhenRootMFAEnabled(t *testing.T) {
+	if got := evalCIS(t, "cis_aws_1_5/cis_1_5.rego", awsAccountSummary(false, true)); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestCIS_1_5_FailsWhenRootMFADisabled(t *testing.T) {
+	if got := evalCIS(t, "cis_aws_1_5/cis_1_5.rego", awsAccountSummary(false, false)); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+// CIS 1.8
+
+func TestCIS_1_8_PassesWhenMinLengthAtThreshold(t *testing.T) {
+	if got := evalCIS(t, "cis_aws_1_5/cis_1_8.rego", awsPasswordPolicy(true, 14, 24)); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestCIS_1_8_FailsWhenMinLengthBelowThreshold(t *testing.T) {
+	if got := evalCIS(t, "cis_aws_1_5/cis_1_8.rego", awsPasswordPolicy(true, 8, 24)); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+func TestCIS_1_8_FailsWhenNoPolicyConfigured(t *testing.T) {
+	if got := evalCIS(t, "cis_aws_1_5/cis_1_8.rego", awsPasswordPolicy(false, 0, 0)); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+// CIS 1.9
+
+func TestCIS_1_9_PassesWhenReusePreventionAtThreshold(t *testing.T) {
+	if got := evalCIS(t, "cis_aws_1_5/cis_1_9.rego", awsPasswordPolicy(true, 14, 24)); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestCIS_1_9_FailsWhenReusePreventionBelowThreshold(t *testing.T) {
+	if got := evalCIS(t, "cis_aws_1_5/cis_1_9.rego", awsPasswordPolicy(true, 14, 5)); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+func TestCIS_1_9_FailsWhenNoPolicyConfigured(t *testing.T) {
+	if got := evalCIS(t, "cis_aws_1_5/cis_1_9.rego", awsPasswordPolicy(false, 0, 0)); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}

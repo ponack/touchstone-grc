@@ -1,0 +1,52 @@
+code: cis_aws_1_5
+name: CIS AWS Foundations Benchmark v1.5.0
+version: "1.5.0"
+description: |
+  CIS Amazon Web Services Foundations Benchmark v1.5.0 — a community-
+  driven baseline for AWS account hardening. Touchstone ships rules
+  in batches as the underlying AWS scanner data becomes available:
+  this first batch covers Section 1 (IAM) account-level checks
+  backed by GetAccountSummary and GetAccountPasswordPolicy.
+  Subsequent batches will cover user-level IAM, then Section 2
+  (Storage), 3 (Logging), 4 (Monitoring), 5 (Networking).
+
+controls:
+  - code: "1.4"
+    title: Ensure no 'root' user account access key exists
+    description: |
+      The root user is the most privileged identity in an AWS account.
+      Access keys give programmatic access at that privilege level —
+      catastrophic if leaked. CIS 1.4 fails when the root account has
+      any access key configured (active or inactive).
+    severity: critical
+    policy_path: cis_aws_1_5/cis_1_4.rego
+
+  - code: "1.5"
+    title: Ensure MFA is enabled for the 'root' user account
+    description: |
+      The root user must require multi-factor authentication. Virtual
+      MFA satisfies CIS 1.5; CIS 1.6 (hardware MFA) is stricter and
+      ships in a follow-up batch once the scanner enumerates MFA
+      device types.
+    severity: critical
+    policy_path: cis_aws_1_5/cis_1_5.rego
+
+  - code: "1.8"
+    title: Ensure IAM password policy requires minimum length of 14 or greater
+    description: |
+      The account password policy must require at least 14 characters
+      for IAM user passwords. Long passwords resist brute-force and
+      credential-stuffing attacks more effectively than complexity
+      rules alone. CIS 1.8 fails when no policy is configured or when
+      minimum_password_length is below 14.
+    severity: high
+    policy_path: cis_aws_1_5/cis_1_8.rego
+
+  - code: "1.9"
+    title: Ensure IAM password policy prevents password reuse
+    description: |
+      The account password policy must remember at least the last 24
+      passwords and prevent their reuse. CIS 1.9 fails when no policy
+      is configured or when password_reuse_prevention is below 24.
+    severity: high
+    policy_path: cis_aws_1_5/cis_1_9.rego
