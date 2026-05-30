@@ -89,6 +89,7 @@ func buildTrailResource(ctx context.Context, client *cloudtrail.Client, t cttype
 			"is_logging":                    isLogging,
 			"s3_bucket_name":                aws.ToString(t.S3BucketName),
 			"kms_key_id":                    aws.ToString(t.KmsKeyId),
+			"cloudwatch_logs_log_group_arn": aws.ToString(t.CloudWatchLogsLogGroupArn),
 		},
 	}, nil
 }
