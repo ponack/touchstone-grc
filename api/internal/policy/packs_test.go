@@ -551,14 +551,44 @@ func lockedBucket() map[string]any {
 		"type": "aws.s3.bucket",
 		"id":   "arn:aws:s3:::locked",
 		"attrs": map[string]any{
+			"name": "locked",
 			"public_access_block": map[string]any{
 				"block_public_acls":       true,
 				"ignore_public_acls":      true,
 				"block_public_policy":     true,
 				"restrict_public_buckets": true,
 			},
-			"policy_status": map[string]any{"is_public": false},
-			"encryption":    map[string]any{"enabled": true, "algorithm": "AES256"},
+			"policy_status":         map[string]any{"is_public": false},
+			"encryption":            map[string]any{"enabled": true, "algorithm": "AES256"},
+			"versioning_enabled":    true,
+			"versioning_mfa_delete": true,
+			"enforces_https_only":   true,
+		},
+	}
+}
+
+// awsS3Bucket builds a bucket resource with explicit knobs for the
+// four CIS Section 2.1 rules. Pass true for "compliant" defaults.
+func awsS3Bucket(name string, encEnabled, httpsOnly, mfaDelete bool, bpa map[string]any) map[string]any {
+	if bpa == nil {
+		bpa = map[string]any{
+			"block_public_acls":       true,
+			"ignore_public_acls":      true,
+			"block_public_policy":     true,
+			"restrict_public_buckets": true,
+		}
+	}
+	return map[string]any{
+		"type": "aws.s3.bucket",
+		"id":   "arn:aws:s3:::" + name,
+		"attrs": map[string]any{
+			"name":                  name,
+			"public_access_block":   bpa,
+			"policy_status":         map[string]any{"is_public": false},
+			"encryption":            map[string]any{"enabled": encEnabled, "algorithm": "AES256"},
+			"versioning_enabled":    true,
+			"versioning_mfa_delete": mfaDelete,
+			"enforces_https_only":   httpsOnly,
 		},
 	}
 }
@@ -3051,5 +3081,99 @@ func TestCIS_1_21_NotApplicableWithoutAccessAnalyzerScan(t *testing.T) {
 	}
 	if d.Status != "not_applicable" {
 		t.Fatalf("status = %q, want not_applicable", d.Status)
+	}
+}
+
+// ── CIS AWS 1.5 — Section 2.1 (S3 storage) ──────────────────────────────────
+
+// CIS 2.1.1 — default encryption
+
+func TestCIS_2_1_1_PassesWhenEncryptionOn(t *testing.T) {
+	b := awsS3Bucket("prod", true, true, true, nil)
+	if got := evalCIS(t, "cis_aws_1_5/cis_2_1_1.rego", b); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestCIS_2_1_1_FailsWhenEncryptionOff(t *testing.T) {
+	b := awsS3Bucket("prod", false, true, true, nil)
+	if got := evalCIS(t, "cis_aws_1_5/cis_2_1_1.rego", b); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+// CIS 2.1.2 — bucket policy denies HTTP
+
+func TestCIS_2_1_2_PassesWhenHTTPSOnly(t *testing.T) {
+	b := awsS3Bucket("prod", true, true, true, nil)
+	if got := evalCIS(t, "cis_aws_1_5/cis_2_1_2.rego", b); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestCIS_2_1_2_FailsWhenHTTPAllowed(t *testing.T) {
+	b := awsS3Bucket("prod", true, false, true, nil)
+	if got := evalCIS(t, "cis_aws_1_5/cis_2_1_2.rego", b); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+// CIS 2.1.3 — MFA Delete
+
+func TestCIS_2_1_3_PassesWhenMFADeleteEnabled(t *testing.T) {
+	b := awsS3Bucket("prod", true, true, true, nil)
+	if got := evalCIS(t, "cis_aws_1_5/cis_2_1_3.rego", b); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestCIS_2_1_3_FailsWhenMFADeleteDisabled(t *testing.T) {
+	b := awsS3Bucket("prod", true, true, false, nil)
+	if got := evalCIS(t, "cis_aws_1_5/cis_2_1_3.rego", b); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+// CIS 2.1.5 — Block public access
+
+func TestCIS_2_1_5_PassesWhenBPAFullyEnabled(t *testing.T) {
+	b := awsS3Bucket("prod", true, true, true, nil)
+	if got := evalCIS(t, "cis_aws_1_5/cis_2_1_5.rego", b); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestCIS_2_1_5_FailsWhenAnyBPAFlagDisabled(t *testing.T) {
+	bpa := map[string]any{
+		"block_public_acls":       true,
+		"ignore_public_acls":      false, // the gap
+		"block_public_policy":     true,
+		"restrict_public_buckets": true,
+	}
+	b := awsS3Bucket("prod", true, true, true, bpa)
+	if got := evalCIS(t, "cis_aws_1_5/cis_2_1_5.rego", b); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+func TestCIS_2_1_NotApplicableWhenNoBuckets(t *testing.T) {
+	for _, rego := range []string{
+		"cis_aws_1_5/cis_2_1_1.rego",
+		"cis_aws_1_5/cis_2_1_2.rego",
+		"cis_aws_1_5/cis_2_1_3.rego",
+		"cis_aws_1_5/cis_2_1_5.rego",
+	} {
+		e, err := policy.NewEngine(packs.FS)
+		if err != nil {
+			t.Fatalf("NewEngine: %v", err)
+		}
+		d, err := e.Evaluate(context.Background(), rego,
+			map[string]any{"resources": []any{}})
+		if err != nil {
+			t.Fatalf("Evaluate %s: %v", rego, err)
+		}
+		if d.Status != "not_applicable" {
+			t.Fatalf("%s status = %q, want not_applicable", rego, d.Status)
+		}
 	}
 }
