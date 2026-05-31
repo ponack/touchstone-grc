@@ -3793,3 +3793,116 @@ func TestCIS_3_9_NotApplicableWithoutVPCs(t *testing.T) {
 		t.Fatalf("status = %q, want not_applicable", d.Status)
 	}
 }
+
+// ── CIS AWS 1.5 — Section 4 monitoring batch 1 (4.1, 4.2, 4.3) ──────────────
+
+// awsMetricFilter builds an aws.cloudwatch.metric_filter resource
+// shaped like the scanner emits. Defaults to a complete chain
+// (alarm + active SNS subscription) so tests focus on the filter
+// pattern matching.
+func awsMetricFilter(name, pattern string) map[string]any {
+	return map[string]any{
+		"type": "aws.cloudwatch.metric_filter",
+		"id":   "aws-cwl://us-east-1/log-groups/CloudTrail/Audit/filters/" + name,
+		"attrs": map[string]any{
+			"filter_name":             name,
+			"log_group_name":          "CloudTrail/Audit",
+			"filter_pattern":          pattern,
+			"metric_namespace":        "CISBenchmark",
+			"metric_name":             name + "Count",
+			"region":                  "us-east-1",
+			"has_alarm":               true,
+			"alarm_topic_arn":         "arn:aws:sns:us-east-1:123456789012:SecurityAlerts",
+			"has_active_subscription": true,
+		},
+	}
+}
+
+// awsMetricFilterIncomplete drops the alarm/subscription chain.
+func awsMetricFilterIncomplete(name, pattern string, hasAlarm, hasSub bool) map[string]any {
+	r := awsMetricFilter(name, pattern)
+	r["attrs"].(map[string]any)["has_alarm"] = hasAlarm
+	r["attrs"].(map[string]any)["has_active_subscription"] = hasSub
+	return r
+}
+
+// CIS 4.1 — unauthorized API calls
+
+func TestCIS_4_1_PassesWhenChainComplete(t *testing.T) {
+	f := awsMetricFilter("UnauthAPI",
+		`{ ($.errorCode = "*UnauthorizedOperation") || ($.errorCode = "AccessDenied*") }`)
+	if got := evalCIS(t, "cis_aws_1_5/cis_4_1.rego", f); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestCIS_4_1_FailsWhenPatternMissesTokens(t *testing.T) {
+	f := awsMetricFilter("Other", `{ $.eventName = "ConsoleLogin" }`)
+	if got := evalCIS(t, "cis_aws_1_5/cis_4_1.rego", f); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+func TestCIS_4_1_FailsWhenNoSubscription(t *testing.T) {
+	f := awsMetricFilterIncomplete("UnauthAPI",
+		`{ ($.errorCode = "*UnauthorizedOperation") || ($.errorCode = "AccessDenied*") }`,
+		true, false)
+	if got := evalCIS(t, "cis_aws_1_5/cis_4_1.rego", f); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+// CIS 4.2 — console signin without MFA
+
+func TestCIS_4_2_PassesWhenChainComplete(t *testing.T) {
+	f := awsMetricFilter("NoMFASignin",
+		`{ ($.eventName = "ConsoleLogin") && ($.additionalEventData.MFAUsed != "Yes") }`)
+	if got := evalCIS(t, "cis_aws_1_5/cis_4_2.rego", f); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestCIS_4_2_FailsWhenPatternMissesTokens(t *testing.T) {
+	f := awsMetricFilter("Other", `{ $.userIdentity.type = "Root" }`)
+	if got := evalCIS(t, "cis_aws_1_5/cis_4_2.rego", f); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+// CIS 4.3 — root account usage
+
+func TestCIS_4_3_PassesWhenChainComplete(t *testing.T) {
+	f := awsMetricFilter("RootUsage",
+		`{ $.userIdentity.type = "Root" && $.userIdentity.invokedBy NOT EXISTS && $.eventType != "AwsServiceEvent" }`)
+	if got := evalCIS(t, "cis_aws_1_5/cis_4_3.rego", f); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestCIS_4_3_FailsWhenPatternMissesTokens(t *testing.T) {
+	f := awsMetricFilter("Other", `{ $.eventName = "ConsoleLogin" }`)
+	if got := evalCIS(t, "cis_aws_1_5/cis_4_3.rego", f); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+func TestCIS_4_NotApplicableWithoutMetricFilters(t *testing.T) {
+	for _, rego := range []string{
+		"cis_aws_1_5/cis_4_1.rego",
+		"cis_aws_1_5/cis_4_2.rego",
+		"cis_aws_1_5/cis_4_3.rego",
+	} {
+		e, err := policy.NewEngine(packs.FS)
+		if err != nil {
+			t.Fatalf("NewEngine: %v", err)
+		}
+		d, err := e.Evaluate(context.Background(), rego,
+			map[string]any{"resources": []any{}})
+		if err != nil {
+			t.Fatalf("Evaluate %s: %v", rego, err)
+		}
+		if d.Status != "not_applicable" {
+			t.Fatalf("%s status = %q, want not_applicable", rego, d.Status)
+		}
+	}
+}
