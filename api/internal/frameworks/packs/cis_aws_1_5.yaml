@@ -459,3 +459,29 @@ controls:
       DeleteInternetGateway must trip an alarm.
     severity: medium
     policy_path: cis_aws_1_5/cis_4_12.rego
+
+  - code: "4.13"
+    title: Ensure a log metric filter and alarm exist for route table changes
+    description: |
+      Route table mutations redirect traffic. Touchstone token-
+      matches CreateRoute + DeleteRoute as the practical signal that
+      the filter targets the routing layer.
+    severity: medium
+    policy_path: cis_aws_1_5/cis_4_13.rego
+
+  - code: "4.14"
+    title: Ensure a log metric filter and alarm exist for VPC changes
+    description: |
+      VPC mutations change the account's network boundary. CreateVpc
+      + DeleteVpc must trip an alarm.
+    severity: medium
+    policy_path: cis_aws_1_5/cis_4_14.rego
+
+  - code: "4.15"
+    title: Ensure a log metric filter and alarm exist for AWS Organizations changes
+    description: |
+      Organizations API events change cross-account policy
+      boundaries. CIS-recommended pattern matches on
+      $.eventSource = organizations.amazonaws.com.
+    severity: high
+    policy_path: cis_aws_1_5/cis_4_15.rego

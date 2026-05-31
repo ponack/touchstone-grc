@@ -3900,6 +3900,9 @@ func TestCIS_4_NotApplicableWithoutMetricFilters(t *testing.T) {
 		"cis_aws_1_5/cis_4_10.rego",
 		"cis_aws_1_5/cis_4_11.rego",
 		"cis_aws_1_5/cis_4_12.rego",
+		"cis_aws_1_5/cis_4_13.rego",
+		"cis_aws_1_5/cis_4_14.rego",
+		"cis_aws_1_5/cis_4_15.rego",
 	} {
 		e, err := policy.NewEngine(packs.FS)
 		if err != nil {
@@ -4071,6 +4074,59 @@ func TestCIS_4_12_PassesWhenGWChangeAlarmComplete(t *testing.T) {
 func TestCIS_4_12_FailsWhenGWChangeTokensMissing(t *testing.T) {
 	f := awsMetricFilter("Other", `{ $.eventName=ConsoleLogin }`)
 	if got := evalCIS(t, "cis_aws_1_5/cis_4_12.rego", f); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+// ── CIS AWS 1.5 — Section 4 monitoring batch 5 (4.13, 4.14, 4.15) ───────────
+
+// CIS 4.13 — route table changes
+
+func TestCIS_4_13_PassesWhenRouteAlarmComplete(t *testing.T) {
+	f := awsMetricFilter("RouteChanges",
+		`{ ($.eventName=CreateRoute) || ($.eventName=DeleteRoute) }`)
+	if got := evalCIS(t, "cis_aws_1_5/cis_4_13.rego", f); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestCIS_4_13_FailsWhenRouteTokensMissing(t *testing.T) {
+	f := awsMetricFilter("Other", `{ $.eventName=ConsoleLogin }`)
+	if got := evalCIS(t, "cis_aws_1_5/cis_4_13.rego", f); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+// CIS 4.14 — VPC changes
+
+func TestCIS_4_14_PassesWhenVPCAlarmComplete(t *testing.T) {
+	f := awsMetricFilter("VPCChanges",
+		`{ ($.eventName=CreateVpc) || ($.eventName=DeleteVpc) }`)
+	if got := evalCIS(t, "cis_aws_1_5/cis_4_14.rego", f); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestCIS_4_14_FailsWhenVPCTokensMissing(t *testing.T) {
+	f := awsMetricFilter("Other", `{ $.eventName=ConsoleLogin }`)
+	if got := evalCIS(t, "cis_aws_1_5/cis_4_14.rego", f); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+// CIS 4.15 — Organizations changes
+
+func TestCIS_4_15_PassesWhenOrgsAlarmComplete(t *testing.T) {
+	f := awsMetricFilter("OrgsChanges",
+		`{ $.eventSource = organizations.amazonaws.com }`)
+	if got := evalCIS(t, "cis_aws_1_5/cis_4_15.rego", f); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestCIS_4_15_FailsWhenOrgsTokensMissing(t *testing.T) {
+	f := awsMetricFilter("Other", `{ $.eventName=ConsoleLogin }`)
+	if got := evalCIS(t, "cis_aws_1_5/cis_4_15.rego", f); got != "fail" {
 		t.Fatalf("status = %q, want fail", got)
 	}
 }
