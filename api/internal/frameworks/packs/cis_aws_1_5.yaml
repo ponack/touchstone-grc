@@ -311,6 +311,16 @@ controls:
     severity: high
     policy_path: cis_aws_1_5/cis_3_7.rego
 
+  - code: "3.8"
+    title: Ensure rotation for customer created CMKs is enabled
+    description: |
+      Customer-managed symmetric KMS keys must have automatic
+      rotation enabled. AWS-managed keys auto-rotate annually and
+      are out of scope. Asymmetric / HMAC CMKs do not support
+      rotation and pass quietly.
+    severity: high
+    policy_path: cis_aws_1_5/cis_3_8.rego
+
   - code: "3.10"
     title: Ensure that Object-level logging for write events is enabled for S3 bucket
     description: |

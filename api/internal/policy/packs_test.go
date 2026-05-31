@@ -3659,3 +3659,70 @@ func TestCIS_3_5_NotApplicableWithoutConfigScan(t *testing.T) {
 		t.Fatalf("status = %q, want not_applicable", d.Status)
 	}
 }
+
+// ── CIS AWS 1.5 — 3.8 (KMS CMK rotation) ────────────────────────────────────
+
+func awsKMSKey(id string, enabled, rotationApplicable, rotationEnabled bool) map[string]any {
+	return map[string]any{
+		"type": "aws.kms.key",
+		"id":   "arn:aws:kms:us-east-1:123456789012:key/" + id,
+		"attrs": map[string]any{
+			"key_id":              id,
+			"arn":                 "arn:aws:kms:us-east-1:123456789012:key/" + id,
+			"region":              "us-east-1",
+			"key_manager":         "CUSTOMER",
+			"key_spec":            "SYMMETRIC_DEFAULT",
+			"enabled":             enabled,
+			"key_state":           "Enabled",
+			"rotation_applicable": rotationApplicable,
+			"rotation_enabled":    rotationEnabled,
+		},
+	}
+}
+
+func TestCIS_3_8_PassesWhenRotationEnabled(t *testing.T) {
+	k := awsKMSKey("abc123", true, true, true)
+	if got := evalCIS(t, "cis_aws_1_5/cis_3_8.rego", k); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestCIS_3_8_FailsWhenRotationDisabled(t *testing.T) {
+	k := awsKMSKey("legacy", true, true, false)
+	if got := evalCIS(t, "cis_aws_1_5/cis_3_8.rego", k); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+func TestCIS_3_8_PassesOnAsymmetricKey(t *testing.T) {
+	// Asymmetric / HMAC CMKs aren't rotation-eligible — they pass
+	// even with rotation_enabled=false.
+	k := awsKMSKey("asym", true, false, false)
+	if got := evalCIS(t, "cis_aws_1_5/cis_3_8.rego", k); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestCIS_3_8_PassesOnDisabledKey(t *testing.T) {
+	// Disabled key can't sign / encrypt anything — no need to
+	// rotate.
+	k := awsKMSKey("retired", false, true, false)
+	if got := evalCIS(t, "cis_aws_1_5/cis_3_8.rego", k); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestCIS_3_8_NotApplicableWithoutKeys(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	d, err := e.Evaluate(context.Background(), "cis_aws_1_5/cis_3_8.rego",
+		map[string]any{"resources": []any{}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "not_applicable" {
+		t.Fatalf("status = %q, want not_applicable", d.Status)
+	}
+}
