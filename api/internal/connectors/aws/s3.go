@@ -53,6 +53,7 @@ func buildBucketResource(ctx context.Context, client *s3.Client, b s3types.Bucke
 	enc := readEncryption(ctx, client, name)
 	ver := readVersioning(ctx, client, name)
 	httpsOnly := readBucketEnforcesHTTPSOnly(ctx, client, name)
+	accessLogging := readBucketAccessLogging(ctx, client, name)
 
 	return connectors.Resource{
 		Type: "aws.s3.bucket",
@@ -64,10 +65,11 @@ func buildBucketResource(ctx context.Context, client *s3.Client, b s3types.Bucke
 			"policy_status": map[string]any{
 				"is_public": publicByPolicy,
 			},
-			"encryption":            enc,
-			"versioning_enabled":    ver.enabled,
-			"versioning_mfa_delete": ver.mfaDelete,
-			"enforces_https_only":   httpsOnly,
+			"encryption":             enc,
+			"versioning_enabled":     ver.enabled,
+			"versioning_mfa_delete":  ver.mfaDelete,
+			"enforces_https_only":    httpsOnly,
+			"access_logging_enabled": accessLogging,
 		},
 	}, nil
 }
@@ -180,6 +182,21 @@ func readVersioning(ctx context.Context, client *s3.Client, name string) version
 		enabled:   out.Status == s3types.BucketVersioningStatusEnabled,
 		mfaDelete: out.MFADelete == s3types.MFADeleteStatusEnabled,
 	}
+}
+
+// ── Server access logging (CIS 3.6) ──────────────────────────────────────────
+
+// readBucketAccessLogging returns true when the bucket has server
+// access logging configured (LoggingEnabled set). CIS 3.6 reads this
+// per CloudTrail-bucket. The S3 scanner emits it for every bucket so
+// other rules can cross-reference.
+func readBucketAccessLogging(ctx context.Context, client *s3.Client, name string) bool {
+	out, err := client.GetBucketLogging(ctx, &s3.GetBucketLoggingInput{Bucket: &name})
+	if err != nil {
+		slog.Warn("s3 GetBucketLogging failed", "bucket", name, "err", err)
+		return false
+	}
+	return out.LoggingEnabled != nil
 }
 
 // ── Bucket policy: HTTPS-only enforcement (CIS 2.1.2) ────────────────────────
