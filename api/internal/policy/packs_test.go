@@ -3891,6 +3891,9 @@ func TestCIS_4_NotApplicableWithoutMetricFilters(t *testing.T) {
 		"cis_aws_1_5/cis_4_1.rego",
 		"cis_aws_1_5/cis_4_2.rego",
 		"cis_aws_1_5/cis_4_3.rego",
+		"cis_aws_1_5/cis_4_4.rego",
+		"cis_aws_1_5/cis_4_5.rego",
+		"cis_aws_1_5/cis_4_6.rego",
 	} {
 		e, err := policy.NewEngine(packs.FS)
 		if err != nil {
@@ -3904,5 +3907,58 @@ func TestCIS_4_NotApplicableWithoutMetricFilters(t *testing.T) {
 		if d.Status != "not_applicable" {
 			t.Fatalf("%s status = %q, want not_applicable", rego, d.Status)
 		}
+	}
+}
+
+// ── CIS AWS 1.5 — Section 4 monitoring batch 2 (4.4, 4.5, 4.6) ──────────────
+
+// CIS 4.4 — IAM policy changes
+
+func TestCIS_4_4_PassesWhenIAMPolicyAlarmComplete(t *testing.T) {
+	f := awsMetricFilter("IAMPolicy",
+		`{ ($.eventName=PutRolePolicy) || ($.eventName=DeleteRolePolicy) }`)
+	if got := evalCIS(t, "cis_aws_1_5/cis_4_4.rego", f); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestCIS_4_4_FailsWhenIAMPolicyMissing(t *testing.T) {
+	f := awsMetricFilter("Other", `{ $.eventName=ConsoleLogin }`)
+	if got := evalCIS(t, "cis_aws_1_5/cis_4_4.rego", f); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+// CIS 4.5 — CloudTrail config changes
+
+func TestCIS_4_5_PassesWhenTrailChangeAlarmComplete(t *testing.T) {
+	f := awsMetricFilter("CTConfig",
+		`{ ($.eventName=CreateTrail) || ($.eventName=UpdateTrail) || ($.eventName=DeleteTrail) }`)
+	if got := evalCIS(t, "cis_aws_1_5/cis_4_5.rego", f); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestCIS_4_5_FailsWhenTrailChangeMissing(t *testing.T) {
+	f := awsMetricFilter("Other", `{ $.eventName=ConsoleLogin }`)
+	if got := evalCIS(t, "cis_aws_1_5/cis_4_5.rego", f); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+// CIS 4.6 — Console authentication failures
+
+func TestCIS_4_6_PassesWhenAuthFailAlarmComplete(t *testing.T) {
+	f := awsMetricFilter("AuthFail",
+		`{ ($.eventName = "ConsoleLogin") && ($.errorMessage = "Failed authentication") }`)
+	if got := evalCIS(t, "cis_aws_1_5/cis_4_6.rego", f); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestCIS_4_6_FailsWhenAuthFailMissing(t *testing.T) {
+	f := awsMetricFilter("Other", `{ $.eventName=ConsoleLogin }`)
+	if got := evalCIS(t, "cis_aws_1_5/cis_4_6.rego", f); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
 	}
 }
