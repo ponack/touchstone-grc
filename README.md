@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/ponack/touchstone-grc/releases/tag/v0.5.1"><img src="https://img.shields.io/badge/release-v0.5.1-C49020?style=flat-square" alt="v0.5.1" /></a>
+  <a href="https://github.com/ponack/touchstone-grc/releases/tag/v0.6.0"><img src="https://img.shields.io/badge/release-v0.6.0-C49020?style=flat-square" alt="v0.6.0" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue?style=flat-square" alt="AGPL-3.0" /></a>
 </p>
 
@@ -20,13 +20,13 @@
 
 Sibling project to [Crucible IAP](https://github.com/ponack/crucible-iap). Standalone — runs without Crucible. Optional integration via public API in a later phase.
 
-> **Status:** v0.5.1 shipped 2026-05-30 — GCP now covers **all 9 cloud-depth controls** (CC6.3 GCP service-account key rotation closes the last gap) and the new admin **Settings page** surfaces the running version, polls GitHub for new releases on a configurable cadence (daily / weekly / monthly / off), and shows an in-nav badge when an update is available.
+> **Status:** v0.6.0 shipped 2026-05-30 — **CIS AWS Foundations Benchmark v1.5.0 pack ships alongside SOC 2**, with 51 automatable rules across all 5 sections (IAM, Storage, Logging, Monitoring, Networking). Eight new AWS sub-scanners landed to feed it: IAM account/password-policy, customer-managed policies, Access Analyzer, EBS encryption, EFS, AWS Config recorders, KMS rotation, VPC flow logs, CloudWatch monitoring chain, and Network ACLs.
 
 ## What it does
 
 - Connects (read-only) to your cloud + SaaS estate. **AWS**, **Azure**, **GCP**, **GitHub**, **Linear**, and **Jira** are fully wired today; Okta, M365, and additional SaaS surfaces on the roadmap.
 - Runs scans, collects evidence artifacts, evaluates them against control packs via embedded OPA.
-- Ships the **SOC 2 2017** control pack today; CIS AWS / HIPAA / PCI-DSS / ISO 27001 on the roadmap.
+- Ships **SOC 2 2017** and **CIS AWS Foundations v1.5.0** control packs today; HIPAA / PCI-DSS / ISO 27001 on the roadmap.
 - Append-only evidence trail, auditor read-only role, auditor-grade CSV + PDF exports.
 - Exception workflow for acknowledged gaps without erasing the audit trail.
 
@@ -70,8 +70,8 @@ docker compose up -d
 Or pull pre-built images directly:
 
 ```text
-ghcr.io/ponack/touchstone-api:0.5.1
-ghcr.io/ponack/touchstone-ui:0.5.1
+ghcr.io/ponack/touchstone-api:0.6.0
+ghcr.io/ponack/touchstone-ui:0.6.0
 ```
 
 Running behind an external reverse proxy (OPNsense, Traefik, nginx, separate Caddy)?
@@ -86,7 +86,7 @@ Caddy / nginx snippet.
 - **Phase 3** — Azure parity: AD, Storage, App Registrations, NSGs, Activity Log, Defender for Cloud, Azure SQL. *(complete — v0.3.0)*
 - **Phase 4** — Procedural connectors: GitHub (CC6.2 MFA enforcement) + Linear + Jira (CC7.4 incident response). *(complete — v0.4.0)*
 - **Phase 5** — GCP series: Workspace 2SV, Cloud Storage, VPC firewall, Cloud Logging sinks, Security Command Center, Cloud SQL. *(complete — v0.5.0)*
-- **Phase 6** — Framework breadth: CIS AWS, HIPAA, PCI-DSS, ISO 27001 — same evidence, new control mappings.
+- **Phase 6** — Framework breadth: CIS AWS Foundations v1.5 *(complete — v0.6.0, 51 rules)*; HIPAA / PCI-DSS / ISO 27001 packs follow.
 - **Phase 7** — GRC surface: personnel, asset inventory, vendor register, risk register.
 - **Phase 8** — Trust Center: public compliance page + questionnaire automation.
 - **Phase 9** — Optional Crucible IAP connector (scans Crucible stacks / runs / policies as evidence).
