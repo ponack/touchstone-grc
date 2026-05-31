@@ -262,6 +262,18 @@ controls:
     severity: high
     policy_path: cis_aws_1_5/cis_3_2.rego
 
+  - code: "3.3"
+    title: Ensure the S3 bucket used to store CloudTrail logs is not publicly accessible
+    description: |
+      Cross-reference every CloudTrail trail with its S3 bucket;
+      bucket must not be marked public by its policy AND must have
+      all four Public Access Block flags enabled. Trails whose
+      buckets aren't enumerated (cross-account log centralisation,
+      for example) don't surface as findings — Touchstone only
+      evaluates buckets it can observe.
+    severity: high
+    policy_path: cis_aws_1_5/cis_3_3.rego
+
   - code: "3.4"
     title: Ensure CloudTrail trails are integrated with CloudWatch Logs
     description: |
@@ -271,6 +283,15 @@ controls:
     severity: medium
     policy_path: cis_aws_1_5/cis_3_4.rego
 
+  - code: "3.6"
+    title: Ensure S3 bucket access logging is enabled on the CloudTrail S3 bucket
+    description: |
+      Server access logging on the trail's bucket gives a second
+      evidence stream — operators can spot tampering, accidental
+      deletions, or unauthorised reads of the audit logs themselves.
+    severity: medium
+    policy_path: cis_aws_1_5/cis_3_6.rego
+
   - code: "3.7"
     title: Ensure CloudTrail logs are encrypted at rest using KMS CMKs
     description: |
@@ -279,3 +300,21 @@ controls:
       objects encrypt with a key the operator controls.
     severity: high
     policy_path: cis_aws_1_5/cis_3_7.rego
+
+  - code: "3.10"
+    title: Ensure that Object-level logging for write events is enabled for S3 bucket
+    description: |
+      At least one CloudTrail trail must capture S3 object-level
+      WRITE events account-wide via data-event selectors.
+      AdvancedEventSelectors (the newer API form) is not yet
+      evaluated — tracked as a follow-up.
+    severity: high
+    policy_path: cis_aws_1_5/cis_3_10.rego
+
+  - code: "3.11"
+    title: Ensure that Object-level logging for read events is enabled for S3 bucket
+    description: |
+      Mirror of 3.10 for READ events. At least one trail must capture
+      S3 object-level reads account-wide.
+    severity: medium
+    policy_path: cis_aws_1_5/cis_3_11.rego

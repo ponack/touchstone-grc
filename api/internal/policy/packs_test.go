@@ -558,11 +558,12 @@ func lockedBucket() map[string]any {
 				"block_public_policy":     true,
 				"restrict_public_buckets": true,
 			},
-			"policy_status":         map[string]any{"is_public": false},
-			"encryption":            map[string]any{"enabled": true, "algorithm": "AES256"},
-			"versioning_enabled":    true,
-			"versioning_mfa_delete": true,
-			"enforces_https_only":   true,
+			"policy_status":          map[string]any{"is_public": false},
+			"encryption":             map[string]any{"enabled": true, "algorithm": "AES256"},
+			"versioning_enabled":     true,
+			"versioning_mfa_delete":  true,
+			"enforces_https_only":    true,
+			"access_logging_enabled": true,
 		},
 	}
 }
@@ -582,13 +583,14 @@ func awsS3Bucket(name string, encEnabled, httpsOnly, mfaDelete bool, bpa map[str
 		"type": "aws.s3.bucket",
 		"id":   "arn:aws:s3:::" + name,
 		"attrs": map[string]any{
-			"name":                  name,
-			"public_access_block":   bpa,
-			"policy_status":         map[string]any{"is_public": false},
-			"encryption":            map[string]any{"enabled": encEnabled, "algorithm": "AES256"},
-			"versioning_enabled":    true,
-			"versioning_mfa_delete": mfaDelete,
-			"enforces_https_only":   httpsOnly,
+			"name":                   name,
+			"public_access_block":    bpa,
+			"policy_status":          map[string]any{"is_public": false},
+			"encryption":             map[string]any{"enabled": encEnabled, "algorithm": "AES256"},
+			"versioning_enabled":     true,
+			"versioning_mfa_delete":  mfaDelete,
+			"enforces_https_only":    httpsOnly,
+			"access_logging_enabled": true,
 		},
 	}
 }
@@ -1243,6 +1245,8 @@ func compliantTrail() map[string]any {
 			"s3_bucket_name":                "audit-logs-prod",
 			"kms_key_id":                    "arn:aws:kms:us-east-1:123456789012:key/abc",
 			"cloudwatch_logs_log_group_arn": "arn:aws:logs:us-east-1:123456789012:log-group:CloudTrail/Audit:*",
+			"logs_s3_writes":                true,
+			"logs_s3_reads":                 true,
 		},
 	}
 }
@@ -3467,6 +3471,8 @@ func TestCIS_3_NotApplicableWithoutTrails(t *testing.T) {
 		"cis_aws_1_5/cis_3_2.rego",
 		"cis_aws_1_5/cis_3_4.rego",
 		"cis_aws_1_5/cis_3_7.rego",
+		"cis_aws_1_5/cis_3_10.rego",
+		"cis_aws_1_5/cis_3_11.rego",
 	} {
 		e, err := policy.NewEngine(packs.FS)
 		if err != nil {
@@ -3480,5 +3486,111 @@ func TestCIS_3_NotApplicableWithoutTrails(t *testing.T) {
 		if d.Status != "not_applicable" {
 			t.Fatalf("%s status = %q, want not_applicable", rego, d.Status)
 		}
+	}
+}
+
+// ── CIS AWS 1.5 — Section 3 batch 2 (CloudTrail bucket cross-checks +
+//                                       object-level logging) ──────────────
+
+// trailBucket builds an S3 bucket named "audit-logs-prod" so it
+// cross-references compliantTrail() via s3_bucket_name. Pass true
+// to make it publicly accessible.
+func trailBucket(public, accessLogging, bpaOK bool) map[string]any {
+	bpa := map[string]any{
+		"block_public_acls":       bpaOK,
+		"ignore_public_acls":      bpaOK,
+		"block_public_policy":     bpaOK,
+		"restrict_public_buckets": bpaOK,
+	}
+	return map[string]any{
+		"type": "aws.s3.bucket",
+		"id":   "arn:aws:s3:::audit-logs-prod",
+		"attrs": map[string]any{
+			"name":                   "audit-logs-prod",
+			"public_access_block":    bpa,
+			"policy_status":          map[string]any{"is_public": public},
+			"encryption":             map[string]any{"enabled": true, "algorithm": "AES256"},
+			"versioning_enabled":     true,
+			"versioning_mfa_delete":  true,
+			"enforces_https_only":    true,
+			"access_logging_enabled": accessLogging,
+		},
+	}
+}
+
+// evalCISPair evaluates a rule with two resources (trail + bucket).
+func evalCISPair(t *testing.T, rego string, a, b map[string]any) string {
+	t.Helper()
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	d, err := e.Evaluate(context.Background(), rego,
+		map[string]any{"resources": []any{a, b}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	return d.Status
+}
+
+// CIS 3.3 — trail bucket not publicly accessible
+
+func TestCIS_3_3_PassesWhenTrailBucketLocked(t *testing.T) {
+	if got := evalCISPair(t, "cis_aws_1_5/cis_3_3.rego", compliantTrail(), trailBucket(false, true, true)); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestCIS_3_3_FailsWhenTrailBucketPolicyPublic(t *testing.T) {
+	if got := evalCISPair(t, "cis_aws_1_5/cis_3_3.rego", compliantTrail(), trailBucket(true, true, true)); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+func TestCIS_3_3_FailsWhenTrailBucketBPAIncomplete(t *testing.T) {
+	if got := evalCISPair(t, "cis_aws_1_5/cis_3_3.rego", compliantTrail(), trailBucket(false, true, false)); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+// CIS 3.6 — trail bucket has access logging
+
+func TestCIS_3_6_PassesWhenTrailBucketHasLogging(t *testing.T) {
+	if got := evalCISPair(t, "cis_aws_1_5/cis_3_6.rego", compliantTrail(), trailBucket(false, true, true)); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestCIS_3_6_FailsWhenTrailBucketHasNoLogging(t *testing.T) {
+	if got := evalCISPair(t, "cis_aws_1_5/cis_3_6.rego", compliantTrail(), trailBucket(false, false, true)); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+// CIS 3.10 / 3.11 — object-level logging
+
+func TestCIS_3_10_PassesWhenTrailLogsWrites(t *testing.T) {
+	if got := evalCISTrail(t, "cis_aws_1_5/cis_3_10.rego", compliantTrail()); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestCIS_3_10_FailsWhenNoTrailLogsWrites(t *testing.T) {
+	bad := trailWith(func(a map[string]any) { a["logs_s3_writes"] = false })
+	if got := evalCISTrail(t, "cis_aws_1_5/cis_3_10.rego", bad); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+func TestCIS_3_11_PassesWhenTrailLogsReads(t *testing.T) {
+	if got := evalCISTrail(t, "cis_aws_1_5/cis_3_11.rego", compliantTrail()); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestCIS_3_11_FailsWhenNoTrailLogsReads(t *testing.T) {
+	bad := trailWith(func(a map[string]any) { a["logs_s3_reads"] = false })
+	if got := evalCISTrail(t, "cis_aws_1_5/cis_3_11.rego", bad); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
 	}
 }
