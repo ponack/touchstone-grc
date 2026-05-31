@@ -347,3 +347,32 @@ controls:
       S3 object-level reads account-wide.
     severity: medium
     policy_path: cis_aws_1_5/cis_3_11.rego
+
+  - code: "4.1"
+    title: Ensure a log metric filter and alarm exist for unauthorized API calls
+    description: |
+      At least one CloudWatch metric filter must capture
+      UnauthorizedOperation / AccessDenied events from CloudTrail
+      logs, feed an alarm, and route the alarm to an SNS topic with
+      at least one active subscription.
+    severity: medium
+    policy_path: cis_aws_1_5/cis_4_1.rego
+
+  - code: "4.2"
+    title: Ensure a log metric filter and alarm exist for Management Console sign-in without MFA
+    description: |
+      A CloudWatch alarm must fire when a user signs in to the
+      Management Console without MFA. Filter pattern token-matched
+      against ConsoleLogin + MFAUsed; the alarm must route to an SNS
+      topic with an active subscription.
+    severity: medium
+    policy_path: cis_aws_1_5/cis_4_2.rego
+
+  - code: "4.3"
+    title: Ensure a log metric filter and alarm exist for usage of the 'root' account
+    description: |
+      Root account activity should be exceptional. A CloudWatch
+      alarm must fire when CloudTrail records userIdentity.type=Root
+      events.
+    severity: high
+    policy_path: cis_aws_1_5/cis_4_3.rego
