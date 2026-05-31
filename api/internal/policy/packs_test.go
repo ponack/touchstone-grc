@@ -3726,3 +3726,70 @@ func TestCIS_3_8_NotApplicableWithoutKeys(t *testing.T) {
 		t.Fatalf("status = %q, want not_applicable", d.Status)
 	}
 }
+
+// ── CIS AWS 1.5 — 3.9 (VPC flow logs) ───────────────────────────────────────
+
+func awsVPC(id string, flowLogsActive bool) map[string]any {
+	return map[string]any{
+		"type": "aws.ec2.vpc",
+		"id":   "aws-ec2://us-east-1/vpcs/" + id,
+		"attrs": map[string]any{
+			"vpc_id":           id,
+			"cidr_block":       "10.0.0.0/16",
+			"region":           "us-east-1",
+			"is_default":       false,
+			"flow_logs_active": flowLogsActive,
+		},
+	}
+}
+
+func TestCIS_3_9_PassesWhenAllVPCsHaveFlowLogs(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	d, err := e.Evaluate(context.Background(), "cis_aws_1_5/cis_3_9.rego",
+		map[string]any{"resources": []any{
+			awsVPC("vpc-aaaa", true),
+			awsVPC("vpc-bbbb", true),
+		}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "pass" {
+		t.Fatalf("status = %q, want pass; message=%q", d.Status, d.Message)
+	}
+}
+
+func TestCIS_3_9_FailsWhenAnyVPCMissingFlowLogs(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	d, err := e.Evaluate(context.Background(), "cis_aws_1_5/cis_3_9.rego",
+		map[string]any{"resources": []any{
+			awsVPC("vpc-aaaa", true),
+			awsVPC("vpc-bbbb", false),
+		}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "fail" {
+		t.Fatalf("status = %q, want fail", d.Status)
+	}
+}
+
+func TestCIS_3_9_NotApplicableWithoutVPCs(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	d, err := e.Evaluate(context.Background(), "cis_aws_1_5/cis_3_9.rego",
+		map[string]any{"resources": []any{}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "not_applicable" {
+		t.Fatalf("status = %q, want not_applicable", d.Status)
+	}
+}
