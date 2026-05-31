@@ -274,6 +274,16 @@ controls:
     severity: high
     policy_path: cis_aws_1_5/cis_3_3.rego
 
+  - code: "3.5"
+    title: Ensure AWS Config is enabled in all regions
+    description: |
+      Every region in scope must carry at least one AWS Config
+      recorder configured for all supported resources AND currently
+      in the Recording state. Without it, configuration drift goes
+      untracked.
+    severity: high
+    policy_path: cis_aws_1_5/cis_3_5.rego
+
   - code: "3.4"
     title: Ensure CloudTrail trails are integrated with CloudWatch Logs
     description: |

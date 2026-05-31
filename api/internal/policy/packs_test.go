@@ -3594,3 +3594,68 @@ func TestCIS_3_11_FailsWhenNoTrailLogsReads(t *testing.T) {
 		t.Fatalf("status = %q, want fail", got)
 	}
 }
+
+// ── CIS AWS 1.5 — 3.5 (AWS Config recorder per region) ──────────────────────
+
+func awsConfigRegion(region string, count int, hasActive bool) map[string]any {
+	return map[string]any{
+		"type": "aws.config.region",
+		"id":   "aws-config://" + region,
+		"attrs": map[string]any{
+			"region":              region,
+			"recorder_count":      count,
+			"has_active_recorder": hasActive,
+		},
+	}
+}
+
+func TestCIS_3_5_PassesWhenAllRegionsHaveRecorder(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	d, err := e.Evaluate(context.Background(), "cis_aws_1_5/cis_3_5.rego",
+		map[string]any{"resources": []any{
+			awsConfigRegion("us-east-1", 1, true),
+			awsConfigRegion("eu-west-1", 1, true),
+		}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "pass" {
+		t.Fatalf("status = %q, want pass; message=%q", d.Status, d.Message)
+	}
+}
+
+func TestCIS_3_5_FailsWhenRegionMissingActiveRecorder(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	d, err := e.Evaluate(context.Background(), "cis_aws_1_5/cis_3_5.rego",
+		map[string]any{"resources": []any{
+			awsConfigRegion("us-east-1", 1, true),
+			awsConfigRegion("eu-west-1", 0, false),
+		}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "fail" {
+		t.Fatalf("status = %q, want fail", d.Status)
+	}
+}
+
+func TestCIS_3_5_NotApplicableWithoutConfigScan(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	d, err := e.Evaluate(context.Background(), "cis_aws_1_5/cis_3_5.rego",
+		map[string]any{"resources": []any{}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "not_applicable" {
+		t.Fatalf("status = %q, want not_applicable", d.Status)
+	}
+}
