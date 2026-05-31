@@ -485,3 +485,31 @@ controls:
       $.eventSource = organizations.amazonaws.com.
     severity: high
     policy_path: cis_aws_1_5/cis_4_15.rego
+
+  - code: "5.1"
+    title: Ensure no Network ACLs allow ingress from 0.0.0.0/0 to remote server administration ports
+    description: |
+      CIS 5.1 / 5.2 define remote server administration ports as 22
+      (SSH) and 3389 (RDP). Any NACL ingress ALLOW entry with
+      cidr_block=0.0.0.0/0 (or ::/0) whose port range covers either
+      port is a finding. DENY entries don't trigger.
+    severity: high
+    policy_path: cis_aws_1_5/cis_5_1.rego
+
+  - code: "5.2"
+    title: Ensure no security groups allow ingress from 0.0.0.0/0 to remote server administration ports
+    description: |
+      Same admin-port set as 5.1 — ports 22 and 3389. Same evidence
+      as SOC 2 CC6.6 but CIS narrows the rule to the two admin
+      ports instead of the broader sensitive-port set.
+    severity: high
+    policy_path: cis_aws_1_5/cis_5_2.rego
+
+  - code: "5.3"
+    title: Ensure the default security group of every VPC restricts all traffic
+    description: |
+      Every VPC's default security group should carry zero ingress
+      AND zero egress rules. Workloads that accidentally land in
+      the default SG then have no implicit traffic.
+    severity: medium
+    policy_path: cis_aws_1_5/cis_5_3.rego

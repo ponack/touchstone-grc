@@ -91,6 +91,7 @@ func (Connector) Scan(ctx context.Context, cfgRaw, secretRaw json.RawMessage) (*
 		func() ([]connectors.Resource, error) { return scanKMS(ctx, awsCfg, cfg.Regions) },
 		func() ([]connectors.Resource, error) { return scanVPC(ctx, awsCfg, cfg.Regions) },
 		func() ([]connectors.Resource, error) { return scanCloudWatchMonitoring(ctx, awsCfg, cfg.Regions) },
+		func() ([]connectors.Resource, error) { return scanNetworkACLs(ctx, awsCfg, cfg.Regions) },
 		func() ([]connectors.Resource, error) { return scanCloudTrail(ctx, awsCfg, cfg.Regions) },
 		func() ([]connectors.Resource, error) { return scanGuardDuty(ctx, awsCfg, cfg.Regions) },
 		func() ([]connectors.Resource, error) { return scanSecurityHub(ctx, awsCfg, cfg.Regions) },
