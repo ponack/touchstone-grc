@@ -4130,3 +4130,174 @@ func TestCIS_4_15_FailsWhenOrgsTokensMissing(t *testing.T) {
 		t.Fatalf("status = %q, want fail", got)
 	}
 }
+
+// ── CIS AWS 1.5 — Section 5 (Networking) ────────────────────────────────────
+
+// awsNACL builds a Network ACL resource. ingress is a slice of rule
+// maps each with rule_action, cidr_block / ipv6_cidr_block,
+// from_port, to_port, protocol, rule_number.
+func awsNACL(id, vpcID string, isDefault bool, ingress []any) map[string]any {
+	return map[string]any{
+		"type": "aws.ec2.network_acl",
+		"id":   "aws-ec2://us-east-1/network-acls/" + id,
+		"attrs": map[string]any{
+			"network_acl_id": id,
+			"vpc_id":         vpcID,
+			"region":         "us-east-1",
+			"is_default":     isDefault,
+			"ingress_rules":  ingress,
+		},
+	}
+}
+
+func naclRule(action, cidr string, from, to int) map[string]any {
+	return map[string]any{
+		"rule_number":     100,
+		"protocol":        "-1",
+		"rule_action":     action,
+		"cidr_block":      cidr,
+		"ipv6_cidr_block": "",
+		"from_port":       from,
+		"to_port":         to,
+	}
+}
+
+// awsSGWithName builds a security group with explicit group_name,
+// vpc_id, and both ingress + egress rule slices. CIS 5.2 / 5.3
+// inspect these directly.
+func awsSGWithName(groupID, groupName, vpcID string, ingress, egress []any) map[string]any {
+	return map[string]any{
+		"type": "aws.ec2.security_group",
+		"id":   "arn:aws:ec2:us-east-1::security-group/" + groupID,
+		"attrs": map[string]any{
+			"group_id":      groupID,
+			"group_name":    groupName,
+			"vpc_id":        vpcID,
+			"description":   groupName + " SG",
+			"region":        "us-east-1",
+			"ingress_rules": ingress,
+			"egress_rules":  egress,
+		},
+	}
+}
+
+// CIS 5.1 — NACL admin port
+
+func TestCIS_5_1_PassesWhenNoWorldOpenAdminPort(t *testing.T) {
+	n := awsNACL("acl-1", "vpc-aaaa", false,
+		[]any{naclRule("allow", "10.0.0.0/8", 22, 22)})
+	if got := evalCIS(t, "cis_aws_1_5/cis_5_1.rego", n); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestCIS_5_1_FailsWhenSSHWorldOpen(t *testing.T) {
+	n := awsNACL("acl-1", "vpc-aaaa", false,
+		[]any{naclRule("allow", "0.0.0.0/0", 22, 22)})
+	if got := evalCIS(t, "cis_aws_1_5/cis_5_1.rego", n); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+func TestCIS_5_1_FailsWhenRDPInRange(t *testing.T) {
+	// Port range 3000-4000 covers 3389. World-open. Fail.
+	n := awsNACL("acl-1", "vpc-aaaa", false,
+		[]any{naclRule("allow", "0.0.0.0/0", 3000, 4000)})
+	if got := evalCIS(t, "cis_aws_1_5/cis_5_1.rego", n); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+func TestCIS_5_1_IgnoresDenyRule(t *testing.T) {
+	// DENY entries restrict — they don't enable. Pass.
+	n := awsNACL("acl-1", "vpc-aaaa", false,
+		[]any{naclRule("deny", "0.0.0.0/0", 22, 22)})
+	if got := evalCIS(t, "cis_aws_1_5/cis_5_1.rego", n); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+// CIS 5.2 — SG admin port
+
+func TestCIS_5_2_PassesWhenSSHCorpOnly(t *testing.T) {
+	sg := awsSGWithName("sg-aaaa", "app-tier", "vpc-aaaa",
+		[]any{sgRule("tcp", 22, 22, []any{"10.0.0.0/8"}, []any{})},
+		[]any{})
+	if got := evalCIS(t, "cis_aws_1_5/cis_5_2.rego", sg); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestCIS_5_2_FailsWhenSSHWorldOpen(t *testing.T) {
+	sg := awsSGWithName("sg-aaaa", "exposed", "vpc-aaaa",
+		[]any{sgRule("tcp", 22, 22, []any{"0.0.0.0/0"}, []any{})},
+		[]any{})
+	if got := evalCIS(t, "cis_aws_1_5/cis_5_2.rego", sg); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+func TestCIS_5_2_FailsWhenRDPViaIPv6WorldOpen(t *testing.T) {
+	sg := awsSGWithName("sg-aaaa", "ipv6-exposed", "vpc-aaaa",
+		[]any{sgRule("tcp", 3389, 3389, []any{}, []any{"::/0"})},
+		[]any{})
+	if got := evalCIS(t, "cis_aws_1_5/cis_5_2.rego", sg); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+// CIS 5.3 — default SG empty
+
+func TestCIS_5_3_PassesWhenDefaultSGEmpty(t *testing.T) {
+	sg := awsSGWithName("sg-default", "default", "vpc-aaaa",
+		[]any{}, []any{})
+	if got := evalCIS(t, "cis_aws_1_5/cis_5_3.rego", sg); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestCIS_5_3_FailsWhenDefaultSGHasIngress(t *testing.T) {
+	sg := awsSGWithName("sg-default", "default", "vpc-aaaa",
+		[]any{sgRule("-1", 0, 65535, []any{"10.0.0.0/8"}, []any{})},
+		[]any{})
+	if got := evalCIS(t, "cis_aws_1_5/cis_5_3.rego", sg); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+func TestCIS_5_3_FailsWhenDefaultSGHasEgress(t *testing.T) {
+	sg := awsSGWithName("sg-default", "default", "vpc-aaaa",
+		[]any{},
+		[]any{sgRule("-1", 0, 65535, []any{"0.0.0.0/0"}, []any{})})
+	if got := evalCIS(t, "cis_aws_1_5/cis_5_3.rego", sg); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+func TestCIS_5_3_NotApplicableWhenNoDefaultSG(t *testing.T) {
+	sg := awsSGWithName("sg-app", "app-tier", "vpc-aaaa", []any{}, []any{})
+	if got := evalCIS(t, "cis_aws_1_5/cis_5_3.rego", sg); got != "not_applicable" {
+		t.Fatalf("status = %q, want not_applicable", got)
+	}
+}
+
+func TestCIS_5_NotApplicableWithoutResources(t *testing.T) {
+	for _, rego := range []string{
+		"cis_aws_1_5/cis_5_1.rego",
+		"cis_aws_1_5/cis_5_2.rego",
+		"cis_aws_1_5/cis_5_3.rego",
+	} {
+		e, err := policy.NewEngine(packs.FS)
+		if err != nil {
+			t.Fatalf("NewEngine: %v", err)
+		}
+		d, err := e.Evaluate(context.Background(), rego,
+			map[string]any{"resources": []any{}})
+		if err != nil {
+			t.Fatalf("Evaluate %s: %v", rego, err)
+		}
+		if d.Status != "not_applicable" {
+			t.Fatalf("%s status = %q, want not_applicable", rego, d.Status)
+		}
+	}
+}
