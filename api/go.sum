@@ -48,6 +48,8 @@ github.com/aws/aws-sdk-go-v2/service/accessanalyzer v1.49.1 h1:zz1CX5ATcts7zLTga
 github.com/aws/aws-sdk-go-v2/service/accessanalyzer v1.49.1/go.mod h1:IuA2O2m3gv3DYqGHr1bqOINzpYdYDCLP52bJDV7x20Q=
 github.com/aws/aws-sdk-go-v2/service/cloudtrail v1.55.11 h1:3IDx7ybn7pyrLgVShEfGmEXec1xsqgoD1ADI1SxqKT0=
 github.com/aws/aws-sdk-go-v2/service/cloudtrail v1.55.11/go.mod h1:iSArc5uhvz1S3EICNNvRzPksb6HPAUhltzMvoCrGyfM=
+github.com/aws/aws-sdk-go-v2/service/configservice v1.62.5 h1:0vQyjqCpMETtDb64+fNURfsgSzCT320aTFJ2Xo0VeEM=
+github.com/aws/aws-sdk-go-v2/service/configservice v1.62.5/go.mod h1:K3qNmmJyxdlpcSFm3t4h3Q7MSMHL77ML8Pr3DX1M9co=
 github.com/aws/aws-sdk-go-v2/service/ec2 v1.304.0 h1:wZthLlYdKxBo7NpWLbl0A/8DB/QNDB+8RJa9WboK9Q0=
 github.com/aws/aws-sdk-go-v2/service/ec2 v1.304.0/go.mod h1:Y95W0Hm6FYLPa6o0hbnJ+sWgmdc4ifcLFjGkdobWVhY=
 github.com/aws/aws-sdk-go-v2/service/efs v1.41.18 h1:gyHxFihkAMu1IDaU6rGErifwJuc5KF2kEEeRa9+CfOM=
