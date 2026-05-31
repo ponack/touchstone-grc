@@ -404,3 +404,30 @@ controls:
       An alarm must fire on those.
     severity: medium
     policy_path: cis_aws_1_5/cis_4_6.rego
+
+  - code: "4.7"
+    title: Ensure a log metric filter and alarm exist for disabling or scheduled deletion of customer-managed CMKs
+    description: |
+      CMK tampering (DisableKey, ScheduleKeyDeletion) precedes
+      data-destruction attacks. The alarm gives operators a window
+      to intervene during the 7-30 day deletion grace.
+    severity: high
+    policy_path: cis_aws_1_5/cis_4_7.rego
+
+  - code: "4.8"
+    title: Ensure a log metric filter and alarm exist for S3 bucket policy changes
+    description: |
+      An alarm must fire on PutBucketPolicy / DeleteBucketPolicy.
+      Operators changing bucket policies might be exfiltrating data
+      or weakening access controls.
+    severity: medium
+    policy_path: cis_aws_1_5/cis_4_8.rego
+
+  - code: "4.9"
+    title: Ensure a log metric filter and alarm exist for AWS Config configuration changes
+    description: |
+      Recorder tampering (StopConfigurationRecorder,
+      DeleteDeliveryChannel) leaves the account un-monitored. An
+      alarm must fire on those events.
+    severity: high
+    policy_path: cis_aws_1_5/cis_4_9.rego

@@ -3894,6 +3894,9 @@ func TestCIS_4_NotApplicableWithoutMetricFilters(t *testing.T) {
 		"cis_aws_1_5/cis_4_4.rego",
 		"cis_aws_1_5/cis_4_5.rego",
 		"cis_aws_1_5/cis_4_6.rego",
+		"cis_aws_1_5/cis_4_7.rego",
+		"cis_aws_1_5/cis_4_8.rego",
+		"cis_aws_1_5/cis_4_9.rego",
 	} {
 		e, err := policy.NewEngine(packs.FS)
 		if err != nil {
@@ -3959,6 +3962,59 @@ func TestCIS_4_6_PassesWhenAuthFailAlarmComplete(t *testing.T) {
 func TestCIS_4_6_FailsWhenAuthFailMissing(t *testing.T) {
 	f := awsMetricFilter("Other", `{ $.eventName=ConsoleLogin }`)
 	if got := evalCIS(t, "cis_aws_1_5/cis_4_6.rego", f); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+// ── CIS AWS 1.5 — Section 4 monitoring batch 3 (4.7, 4.8, 4.9) ──────────────
+
+// CIS 4.7 — CMK disable / scheduled deletion
+
+func TestCIS_4_7_PassesWhenCMKDisableAlarmComplete(t *testing.T) {
+	f := awsMetricFilter("CMKTamper",
+		`{ ($.eventName=DisableKey) || ($.eventName=ScheduleKeyDeletion) }`)
+	if got := evalCIS(t, "cis_aws_1_5/cis_4_7.rego", f); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestCIS_4_7_FailsWhenCMKTokensMissing(t *testing.T) {
+	f := awsMetricFilter("Other", `{ $.eventName=ConsoleLogin }`)
+	if got := evalCIS(t, "cis_aws_1_5/cis_4_7.rego", f); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+// CIS 4.8 — S3 bucket policy changes
+
+func TestCIS_4_8_PassesWhenBucketPolicyAlarmComplete(t *testing.T) {
+	f := awsMetricFilter("S3Policy",
+		`{ ($.eventName=PutBucketPolicy) || ($.eventName=DeleteBucketPolicy) }`)
+	if got := evalCIS(t, "cis_aws_1_5/cis_4_8.rego", f); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestCIS_4_8_FailsWhenBucketPolicyTokensMissing(t *testing.T) {
+	f := awsMetricFilter("Other", `{ $.eventName=ConsoleLogin }`)
+	if got := evalCIS(t, "cis_aws_1_5/cis_4_8.rego", f); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+// CIS 4.9 — AWS Config changes
+
+func TestCIS_4_9_PassesWhenConfigChangeAlarmComplete(t *testing.T) {
+	f := awsMetricFilter("ConfigTamper",
+		`{ ($.eventName=StopConfigurationRecorder) || ($.eventName=DeleteDeliveryChannel) }`)
+	if got := evalCIS(t, "cis_aws_1_5/cis_4_9.rego", f); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestCIS_4_9_FailsWhenConfigChangeTokensMissing(t *testing.T) {
+	f := awsMetricFilter("Other", `{ $.eventName=ConsoleLogin }`)
+	if got := evalCIS(t, "cis_aws_1_5/cis_4_9.rego", f); got != "fail" {
 		t.Fatalf("status = %q, want fail", got)
 	}
 }
