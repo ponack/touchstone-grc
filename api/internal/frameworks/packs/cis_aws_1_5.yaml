@@ -321,6 +321,15 @@ controls:
     severity: high
     policy_path: cis_aws_1_5/cis_3_8.rego
 
+  - code: "3.9"
+    title: Ensure VPC flow logging is enabled in all VPCs
+    description: |
+      Every VPC must have at least one ACTIVE VPC-scoped flow log
+      capturing traffic to S3, CloudWatch Logs, or Kinesis.
+      Subnet- or ENI-scoped flow logs don't satisfy the rule.
+    severity: medium
+    policy_path: cis_aws_1_5/cis_3_9.rego
+
   - code: "3.10"
     title: Ensure that Object-level logging for write events is enabled for S3 bucket
     description: |
