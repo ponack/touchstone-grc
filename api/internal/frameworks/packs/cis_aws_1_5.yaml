@@ -431,3 +431,31 @@ controls:
       alarm must fire on those events.
     severity: high
     policy_path: cis_aws_1_5/cis_4_9.rego
+
+  - code: "4.10"
+    title: Ensure a log metric filter and alarm exist for security group changes
+    description: |
+      Ingress / egress mutations on security groups must trip an
+      alarm. Touchstone token-matches AuthorizeSecurityGroupIngress
+      + RevokeSecurityGroupIngress as the practical signal that the
+      filter targets the perimeter.
+    severity: medium
+    policy_path: cis_aws_1_5/cis_4_10.rego
+
+  - code: "4.11"
+    title: Ensure a log metric filter and alarm exist for changes to Network Access Control Lists
+    description: |
+      NACL changes alter the second layer of subnet-level network
+      controls. An alarm must fire on CreateNetworkAcl /
+      DeleteNetworkAcl (and the entry/replace family).
+    severity: medium
+    policy_path: cis_aws_1_5/cis_4_11.rego
+
+  - code: "4.12"
+    title: Ensure a log metric filter and alarm exist for changes to network gateways
+    description: |
+      Internet, customer, and VPN gateway mutations change the
+      account's egress / ingress topology. CreateInternetGateway +
+      DeleteInternetGateway must trip an alarm.
+    severity: medium
+    policy_path: cis_aws_1_5/cis_4_12.rego
