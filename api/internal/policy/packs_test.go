@@ -4712,6 +4712,72 @@ func TestHIPAA_312_e_1_FailsWhenAzureTLS10(t *testing.T) {
 	}
 }
 
+// ── HIPAA Security Rule — §164.308 Administrative Safeguards ────────────────
+
+// 164.308(a)(3)(ii)(C) — Termination procedures (stale IAM keys)
+
+func TestHIPAA_308_a_3_ii_c_PassesWithFreshKey(t *testing.T) {
+	k := awsIAMAccessKey("AKIA1", "Active", 30*24*time.Hour, 24*time.Hour)
+	u := awsIAMUser("alice", false, 30*24*time.Hour, 0, []map[string]any{k})
+	if got := evalHIPAA(t, "hipaa_security_rule/rule_164_308_a_3_ii_c.rego", u); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestHIPAA_308_a_3_ii_c_FailsWithStaleKey(t *testing.T) {
+	k := awsIAMAccessKey("AKIA1", "Active", 400*24*time.Hour, 24*time.Hour)
+	u := awsIAMUser("legacy", false, 400*24*time.Hour, 0, []map[string]any{k})
+	if got := evalHIPAA(t, "hipaa_security_rule/rule_164_308_a_3_ii_c.rego", u); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+// 164.308(a)(4)(ii)(C) — Access Establishment / Modification
+
+func TestHIPAA_308_a_4_ii_c_PassesWithNoDirectPolicy(t *testing.T) {
+	u := awsIAMUserWithDirectPolicies("alice", 0, 0)
+	if got := evalHIPAA(t, "hipaa_security_rule/rule_164_308_a_4_ii_c.rego", u); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestHIPAA_308_a_4_ii_c_FailsWithDirectPolicy(t *testing.T) {
+	u := awsIAMUserWithDirectPolicies("bob", 1, 0)
+	if got := evalHIPAA(t, "hipaa_security_rule/rule_164_308_a_4_ii_c.rego", u); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+// 164.308(a)(5)(ii)(B) — Protection from Malicious Software
+
+func TestHIPAA_308_a_5_ii_b_PassesWhenDetectorEnabled(t *testing.T) {
+	if got := evalHIPAA(t, "hipaa_security_rule/rule_164_308_a_5_ii_b.rego", enabledDetector("us-east-1")); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestHIPAA_308_a_5_ii_b_FailsWhenAllDetectorsDisabled(t *testing.T) {
+	if got := evalHIPAA(t, "hipaa_security_rule/rule_164_308_a_5_ii_b.rego", disabledDetector("us-east-1")); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+// 164.308(a)(7)(ii)(A) — Data Backup Plan
+
+func TestHIPAA_308_a_7_ii_a_PassesAtBaseline(t *testing.T) {
+	r := rdsInstance("prod-db", 14, true)
+	if got := evalHIPAA(t, "hipaa_security_rule/rule_164_308_a_7_ii_a.rego", r); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestHIPAA_308_a_7_ii_a_FailsBelowBaseline(t *testing.T) {
+	r := rdsInstance("short", 3, true)
+	if got := evalHIPAA(t, "hipaa_security_rule/rule_164_308_a_7_ii_a.rego", r); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
 func TestHIPAA_NotApplicableWithoutResources(t *testing.T) {
 	for _, rego := range []string{
 		"hipaa_security_rule/rule_164_312_a_2_iv.rego",
@@ -4719,6 +4785,10 @@ func TestHIPAA_NotApplicableWithoutResources(t *testing.T) {
 		"hipaa_security_rule/rule_164_312_c_2.rego",
 		"hipaa_security_rule/rule_164_312_d.rego",
 		"hipaa_security_rule/rule_164_312_e_1.rego",
+		"hipaa_security_rule/rule_164_308_a_3_ii_c.rego",
+		"hipaa_security_rule/rule_164_308_a_4_ii_c.rego",
+		"hipaa_security_rule/rule_164_308_a_5_ii_b.rego",
+		"hipaa_security_rule/rule_164_308_a_7_ii_a.rego",
 	} {
 		e, err := policy.NewEngine(packs.FS)
 		if err != nil {
