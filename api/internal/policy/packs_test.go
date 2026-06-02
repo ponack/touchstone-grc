@@ -4400,6 +4400,10 @@ func TestPCI_NotApplicableWithoutResources(t *testing.T) {
 	for _, rego := range []string{
 		"pci_dss_v4/req_1_3_2.rego",
 		"pci_dss_v4/req_3_5_1_2.rego",
+		"pci_dss_v4/req_4_2_1.rego",
+		"pci_dss_v4/req_7_2_5.rego",
+		"pci_dss_v4/req_8_3_6.rego",
+		"pci_dss_v4/req_8_4_1.rego",
 	} {
 		e, err := policy.NewEngine(packs.FS)
 		if err != nil {
@@ -4413,5 +4417,122 @@ func TestPCI_NotApplicableWithoutResources(t *testing.T) {
 		if d.Status != "not_applicable" {
 			t.Fatalf("%s status = %q, want not_applicable", rego, d.Status)
 		}
+	}
+}
+
+// ── PCI DSS v4.0 — Req 4, 7, 8 (transit / access / identity) ────────────────
+
+// PCI 4.2.1 — strong transit encryption
+
+func TestPCI_4_2_1_PassesWhenS3HTTPSOnly(t *testing.T) {
+	b := awsS3Bucket("prod", true, true, true, nil)
+	if got := evalPCI(t, "pci_dss_v4/req_4_2_1.rego", b); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestPCI_4_2_1_FailsWhenS3AllowsHTTP(t *testing.T) {
+	b := awsS3Bucket("prod", true, false, true, nil)
+	if got := evalPCI(t, "pci_dss_v4/req_4_2_1.rego", b); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+func TestPCI_4_2_1_FailsWhenAzureHTTP(t *testing.T) {
+	a := azureStorage("legacy", map[string]any{"enable_https_traffic_only": false})
+	if got := evalPCI(t, "pci_dss_v4/req_4_2_1.rego", a); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+func TestPCI_4_2_1_FailsWhenAzureTLS10(t *testing.T) {
+	a := azureStorage("legacy", map[string]any{"minimum_tls_version": "TLS1_0"})
+	if got := evalPCI(t, "pci_dss_v4/req_4_2_1.rego", a); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+// PCI 7.2.5 — least-privilege system accounts
+
+func TestPCI_7_2_5_PassesWhenIAMUserGroupOnly(t *testing.T) {
+	u := awsIAMUserWithDirectPolicies("alice", 0, 0)
+	if got := evalPCI(t, "pci_dss_v4/req_7_2_5.rego", u); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestPCI_7_2_5_FailsWhenIAMUserHasDirectPolicy(t *testing.T) {
+	u := awsIAMUserWithDirectPolicies("bob", 1, 0)
+	if got := evalPCI(t, "pci_dss_v4/req_7_2_5.rego", u); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+func TestPCI_7_2_5_FailsWhenGCPSAKeyStale(t *testing.T) {
+	stale := time.Now().Add(-400 * 24 * time.Hour).UTC().Format(time.RFC3339)
+	sa := gcpServiceAccount("legacy@acme.iam.gserviceaccount.com",
+		[]any{gcpSAKey("def456", "USER_MANAGED", stale)})
+	if got := evalPCI(t, "pci_dss_v4/req_7_2_5.rego", sa); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+func TestPCI_7_2_5_PassesWhenGCPSAKeyFresh(t *testing.T) {
+	fresh := time.Now().Add(-30 * 24 * time.Hour).UTC().Format(time.RFC3339)
+	sa := gcpServiceAccount("scanner@acme.iam.gserviceaccount.com",
+		[]any{gcpSAKey("abc123", "USER_MANAGED", fresh)})
+	if got := evalPCI(t, "pci_dss_v4/req_7_2_5.rego", sa); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+// PCI 8.3.6 — password complexity
+
+func TestPCI_8_3_6_PassesAtPCIBaseline(t *testing.T) {
+	// PCI baseline: length >= 12, reuse_prevention >= 4. Strict CIS
+	// values (14 / 24) of course pass too.
+	if got := evalPCI(t, "pci_dss_v4/req_8_3_6.rego", awsPasswordPolicy(true, 12, 4)); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestPCI_8_3_6_FailsBelowLength(t *testing.T) {
+	if got := evalPCI(t, "pci_dss_v4/req_8_3_6.rego", awsPasswordPolicy(true, 8, 24)); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+func TestPCI_8_3_6_FailsBelowReuse(t *testing.T) {
+	if got := evalPCI(t, "pci_dss_v4/req_8_3_6.rego", awsPasswordPolicy(true, 14, 2)); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+func TestPCI_8_3_6_FailsWhenNoPolicy(t *testing.T) {
+	if got := evalPCI(t, "pci_dss_v4/req_8_3_6.rego", awsPasswordPolicy(false, 0, 0)); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+// PCI 8.4.1 — MFA on console / admin identities
+
+func TestPCI_8_4_1_PassesWhenConsoleUserHasMFA(t *testing.T) {
+	u := awsIAMUserWithMFA("alice", true, []string{"arn:aws:iam::1:mfa/alice"}, nil)
+	if got := evalPCI(t, "pci_dss_v4/req_8_4_1.rego", u); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestPCI_8_4_1_FailsWhenConsoleUserMissingMFA(t *testing.T) {
+	u := awsIAMUserWithMFA("bob", true, nil, nil)
+	if got := evalPCI(t, "pci_dss_v4/req_8_4_1.rego", u); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+func TestPCI_8_4_1_FailsWhenAzureMemberLacksMFA(t *testing.T) {
+	u := azureUser("naked@example.com", true, false, "Member")
+	if got := evalPCI(t, "pci_dss_v4/req_8_4_1.rego", u); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
 	}
 }

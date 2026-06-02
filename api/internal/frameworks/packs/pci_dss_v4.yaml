@@ -38,3 +38,42 @@ controls:
       Any unencrypted resource in scope is a finding.
     severity: high
     policy_path: pci_dss_v4/req_3_5_1_2.rego
+
+  - code: "4.2.1"
+    title: Strong cryptography and security protocols protect PAN during transmission
+    description: |
+      Account data in transit must travel over strong, modern
+      crypto. Touchstone evaluates AWS S3 (bucket policy denies
+      non-HTTPS) and Azure Storage (supportsHttpsTrafficOnly +
+      minimum_tls_version >= TLS1_2) in parallel.
+    severity: high
+    policy_path: pci_dss_v4/req_4_2_1.rego
+
+  - code: "7.2.5"
+    title: Application and system accounts and the privileges assigned are managed
+    description: |
+      System / application identities follow least privilege.
+      Touchstone evaluates AWS IAM users (no direct policy
+      attachments — permissions flow through groups) and GCP
+      service accounts (user-managed keys rotated within 365 days).
+    severity: medium
+    policy_path: pci_dss_v4/req_7_2_5.rego
+
+  - code: "8.3.6"
+    title: Minimum level of complexity for passwords
+    description: |
+      The AWS account password policy must enforce a minimum length
+      of 12 and prevent reuse of the last 4 passwords (PCI v4.0
+      baseline). Touchstone reads the same evidence CIS 1.8 / 1.9
+      check.
+    severity: high
+    policy_path: pci_dss_v4/req_8_3_6.rego
+
+  - code: "8.4.1"
+    title: MFA implemented for all access into the CDE
+    description: |
+      Every administrative identity must carry a second factor.
+      Touchstone evaluates AWS IAM console users (at least one MFA
+      device) and Azure AD members (MFA-capable + MFA-registered).
+    severity: critical
+    policy_path: pci_dss_v4/req_8_4_1.rego
