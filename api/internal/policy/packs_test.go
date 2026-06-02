@@ -4301,3 +4301,117 @@ func TestCIS_5_NotApplicableWithoutResources(t *testing.T) {
 		}
 	}
 }
+
+// ── PCI DSS v4.0 — Req 1, 3 (initial pack) ──────────────────────────────────
+
+// evalPCI mirrors evalCIS — same engine, different pack path.
+func evalPCI(t *testing.T, path string, resource map[string]any) string {
+	t.Helper()
+	return evalCIS(t, path, resource)
+}
+
+// PCI 1.3.2 — SG world-open admin ports
+
+func TestPCI_1_3_2_PassesWhenSGRestricted(t *testing.T) {
+	sg := awsSGWithName("sg-aaaa", "app-tier", "vpc-aaaa",
+		[]any{sgRule("tcp", 22, 22, []any{"10.0.0.0/8"}, []any{})},
+		[]any{})
+	if got := evalPCI(t, "pci_dss_v4/req_1_3_2.rego", sg); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestPCI_1_3_2_FailsWhenSSHWorldOpen(t *testing.T) {
+	sg := awsSGWithName("sg-aaaa", "exposed", "vpc-aaaa",
+		[]any{sgRule("tcp", 22, 22, []any{"0.0.0.0/0"}, []any{})},
+		[]any{})
+	if got := evalPCI(t, "pci_dss_v4/req_1_3_2.rego", sg); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+func TestPCI_1_3_2_FailsWhenRDPWorldOpen(t *testing.T) {
+	sg := awsSGWithName("sg-aaaa", "exposed", "vpc-aaaa",
+		[]any{sgRule("tcp", 3389, 3389, []any{"0.0.0.0/0"}, []any{})},
+		[]any{})
+	if got := evalPCI(t, "pci_dss_v4/req_1_3_2.rego", sg); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+// PCI 3.5.1.2 — at-rest encryption across all storage surfaces
+
+func TestPCI_3_5_1_2_PassesWhenS3Encrypted(t *testing.T) {
+	b := awsS3Bucket("prod", true, true, true, nil)
+	if got := evalPCI(t, "pci_dss_v4/req_3_5_1_2.rego", b); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestPCI_3_5_1_2_FailsWhenS3Unencrypted(t *testing.T) {
+	b := awsS3Bucket("prod", false, true, true, nil)
+	if got := evalPCI(t, "pci_dss_v4/req_3_5_1_2.rego", b); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+func TestPCI_3_5_1_2_FailsWhenEBSRegionUnencrypted(t *testing.T) {
+	r := awsEBSEncryptionRegion("us-east-1", false)
+	if got := evalPCI(t, "pci_dss_v4/req_3_5_1_2.rego", r); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+func TestPCI_3_5_1_2_FailsWhenRDSUnencrypted(t *testing.T) {
+	r := rdsInstanceWithCIS("legacy", false, true, false)
+	if got := evalPCI(t, "pci_dss_v4/req_3_5_1_2.rego", r); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+func TestPCI_3_5_1_2_FailsWhenEFSUnencrypted(t *testing.T) {
+	f := awsEFSFileSystem("fs-1", "legacy", false)
+	if got := evalPCI(t, "pci_dss_v4/req_3_5_1_2.rego", f); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+func TestPCI_3_5_1_2_PassesAcrossAllSurfaces(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	d, err := e.Evaluate(context.Background(), "pci_dss_v4/req_3_5_1_2.rego",
+		map[string]any{"resources": []any{
+			awsS3Bucket("prod", true, true, true, nil),
+			awsEBSEncryptionRegion("us-east-1", true),
+			rdsInstanceWithCIS("prod-db", true, true, false),
+			awsEFSFileSystem("fs-prod", "prod", true),
+		}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "pass" {
+		t.Fatalf("status = %q, want pass; message=%q", d.Status, d.Message)
+	}
+}
+
+func TestPCI_NotApplicableWithoutResources(t *testing.T) {
+	for _, rego := range []string{
+		"pci_dss_v4/req_1_3_2.rego",
+		"pci_dss_v4/req_3_5_1_2.rego",
+	} {
+		e, err := policy.NewEngine(packs.FS)
+		if err != nil {
+			t.Fatalf("NewEngine: %v", err)
+		}
+		d, err := e.Evaluate(context.Background(), rego,
+			map[string]any{"resources": []any{}})
+		if err != nil {
+			t.Fatalf("Evaluate %s: %v", rego, err)
+		}
+		if d.Status != "not_applicable" {
+			t.Fatalf("%s status = %q, want not_applicable", rego, d.Status)
+		}
+	}
+}
