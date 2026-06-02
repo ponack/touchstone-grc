@@ -17,6 +17,51 @@ description: |
   Safeguards (added in batch 2).
 
 controls:
+  - code: "164.308(a)(3)(ii)(C)"
+    title: Termination Procedures
+    description: |
+      Required implementation specification under the Workforce
+      Security standard. Implement procedures for terminating
+      access to ePHI when employment or access authorization ends.
+      Touchstone evaluates AWS IAM access keys: every Active key
+      must have been created within 365 days — stale long-lived
+      credentials are the canonical termination-gap finding.
+    severity: high
+    policy_path: hipaa_security_rule/rule_164_308_a_3_ii_c.rego
+
+  - code: "164.308(a)(4)(ii)(C)"
+    title: Access Establishment and Modification
+    description: |
+      Required implementation specification under the Information
+      Access Management standard. Touchstone evaluates AWS IAM
+      users — direct policy attachments are an anti-pattern;
+      permissions must flow through group membership so access
+      reviews / modifications act on one named subject. Same
+      evidence as CIS 1.15 / PCI 7.2.5.
+    severity: medium
+    policy_path: hipaa_security_rule/rule_164_308_a_4_ii_c.rego
+
+  - code: "164.308(a)(5)(ii)(B)"
+    title: Protection from Malicious Software
+    description: |
+      Addressable implementation specification under the Security
+      Awareness and Training standard. Touchstone evaluates AWS
+      GuardDuty — at least one ENABLED detector. Same evidence as
+      SOC 2 CC6.8 / PCI 11.5.1.
+    severity: high
+    policy_path: hipaa_security_rule/rule_164_308_a_5_ii_b.rego
+
+  - code: "164.308(a)(7)(ii)(A)"
+    title: Data Backup Plan
+    description: |
+      Required implementation specification under the Contingency
+      Plan standard. Establish procedures to create and maintain
+      retrievable exact copies of ePHI. Touchstone evaluates AWS
+      RDS — every instance must carry at least 7 days of automated
+      backups. Same baseline as SOC 2 CC7.5.
+    severity: high
+    policy_path: hipaa_security_rule/rule_164_308_a_7_ii_a.rego
+
   - code: "164.312(a)(2)(iv)"
     title: Encryption and Decryption
     description: |
