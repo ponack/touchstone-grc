@@ -4595,3 +4595,142 @@ func TestPCI_11_5_1_FailsWhenAllDetectorsDisabled(t *testing.T) {
 		t.Fatalf("status = %q, want fail", got)
 	}
 }
+
+// ── HIPAA Security Rule — §164.312 Technical Safeguards ─────────────────────
+
+func evalHIPAA(t *testing.T, path string, resource map[string]any) string {
+	t.Helper()
+	return evalCIS(t, path, resource)
+}
+
+// 164.312(a)(2)(iv) — encryption at rest
+
+func TestHIPAA_312_a_2_iv_PassesWhenS3Encrypted(t *testing.T) {
+	b := awsS3Bucket("prod", true, true, true, nil)
+	if got := evalHIPAA(t, "hipaa_security_rule/rule_164_312_a_2_iv.rego", b); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestHIPAA_312_a_2_iv_FailsWhenS3Unencrypted(t *testing.T) {
+	b := awsS3Bucket("prod", false, true, true, nil)
+	if got := evalHIPAA(t, "hipaa_security_rule/rule_164_312_a_2_iv.rego", b); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+func TestHIPAA_312_a_2_iv_FailsWhenRDSUnencrypted(t *testing.T) {
+	r := rdsInstanceWithCIS("legacy", false, true, false)
+	if got := evalHIPAA(t, "hipaa_security_rule/rule_164_312_a_2_iv.rego", r); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+// 164.312(b) — Audit Controls
+
+func TestHIPAA_312_b_PassesWhenTrailLogging(t *testing.T) {
+	if got := evalHIPAA(t, "hipaa_security_rule/rule_164_312_b.rego", compliantTrail()); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestHIPAA_312_b_FailsWhenSingleRegion(t *testing.T) {
+	bad := trailWith(func(a map[string]any) { a["is_multi_region"] = false })
+	if got := evalHIPAA(t, "hipaa_security_rule/rule_164_312_b.rego", bad); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+// 164.312(c)(2) — Authenticate ePHI
+
+func TestHIPAA_312_c_2_PassesWhenLogValidationOn(t *testing.T) {
+	if got := evalHIPAA(t, "hipaa_security_rule/rule_164_312_c_2.rego", compliantTrail()); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestHIPAA_312_c_2_FailsWhenLogValidationOff(t *testing.T) {
+	bad := trailWith(func(a map[string]any) { a["log_file_validation_enabled"] = false })
+	if got := evalHIPAA(t, "hipaa_security_rule/rule_164_312_c_2.rego", bad); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+// 164.312(d) — Person/Entity Authentication
+
+func TestHIPAA_312_d_PassesWhenPolicyAndMFAGood(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	d, err := e.Evaluate(context.Background(), "hipaa_security_rule/rule_164_312_d.rego",
+		map[string]any{"resources": []any{
+			awsPasswordPolicy(true, 14, 24),
+			awsIAMUserWithMFA("alice", true, []string{"arn:aws:iam::1:mfa/alice"}, nil),
+		}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "pass" {
+		t.Fatalf("status = %q, want pass; message=%q", d.Status, d.Message)
+	}
+}
+
+func TestHIPAA_312_d_FailsWhenPasswordPolicyMissing(t *testing.T) {
+	if got := evalHIPAA(t, "hipaa_security_rule/rule_164_312_d.rego", awsPasswordPolicy(false, 0, 0)); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+func TestHIPAA_312_d_FailsWhenConsoleUserMissingMFA(t *testing.T) {
+	u := awsIAMUserWithMFA("bob", true, nil, nil)
+	if got := evalHIPAA(t, "hipaa_security_rule/rule_164_312_d.rego", u); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+// 164.312(e)(1) — Transmission Security
+
+func TestHIPAA_312_e_1_PassesWhenS3HTTPSOnly(t *testing.T) {
+	b := awsS3Bucket("prod", true, true, true, nil)
+	if got := evalHIPAA(t, "hipaa_security_rule/rule_164_312_e_1.rego", b); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestHIPAA_312_e_1_FailsWhenS3AllowsHTTP(t *testing.T) {
+	b := awsS3Bucket("prod", true, false, true, nil)
+	if got := evalHIPAA(t, "hipaa_security_rule/rule_164_312_e_1.rego", b); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+func TestHIPAA_312_e_1_FailsWhenAzureTLS10(t *testing.T) {
+	a := azureStorage("legacy", map[string]any{"minimum_tls_version": "TLS1_0"})
+	if got := evalHIPAA(t, "hipaa_security_rule/rule_164_312_e_1.rego", a); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+func TestHIPAA_NotApplicableWithoutResources(t *testing.T) {
+	for _, rego := range []string{
+		"hipaa_security_rule/rule_164_312_a_2_iv.rego",
+		"hipaa_security_rule/rule_164_312_b.rego",
+		"hipaa_security_rule/rule_164_312_c_2.rego",
+		"hipaa_security_rule/rule_164_312_d.rego",
+		"hipaa_security_rule/rule_164_312_e_1.rego",
+	} {
+		e, err := policy.NewEngine(packs.FS)
+		if err != nil {
+			t.Fatalf("NewEngine: %v", err)
+		}
+		d, err := e.Evaluate(context.Background(), rego,
+			map[string]any{"resources": []any{}})
+		if err != nil {
+			t.Fatalf("Evaluate %s: %v", rego, err)
+		}
+		if d.Status != "not_applicable" {
+			t.Fatalf("%s status = %q, want not_applicable", rego, d.Status)
+		}
+	}
+}

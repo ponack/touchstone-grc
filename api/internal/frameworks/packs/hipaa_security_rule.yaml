@@ -1,0 +1,77 @@
+code: hipaa_security_rule
+name: HIPAA Security Rule
+version: "2013"
+description: |
+  HIPAA Security Rule (45 CFR §§ 164.302-318) — Administrative,
+  Physical, and Technical Safeguards for electronic protected
+  health information (ePHI). Physical safeguards are out of scope
+  (cloud-only). Most administrative safeguards (workforce
+  training, sanction policy, business associate agreements,
+  contingency plan documentation) are procedural and remain
+  auditor-reviewed off-platform.
+
+  Touchstone ships the subset where existing AWS / Azure / GCP
+  evidence directly satisfies a Security Rule implementation
+  specification. This pack focuses on §164.312 Technical
+  Safeguards plus the automatable parts of §164.308 Administrative
+  Safeguards (added in batch 2).
+
+controls:
+  - code: "164.312(a)(2)(iv)"
+    title: Encryption and Decryption
+    description: |
+      Implement a mechanism to encrypt and decrypt ePHI.
+      Addressable specification under the Access Control standard
+      §164.312(a)(1). Touchstone evaluates encryption at rest
+      across AWS S3 buckets (default encryption), EBS volumes
+      (per-region encryption-by-default), RDS instances
+      (storage_encrypted), and EFS file systems (encrypted). Any
+      unencrypted resource is a finding.
+    severity: high
+    policy_path: hipaa_security_rule/rule_164_312_a_2_iv.rego
+
+  - code: "164.312(b)"
+    title: Audit Controls
+    description: |
+      Implement hardware, software, and/or procedural mechanisms
+      that record and examine activity in information systems that
+      contain or use ePHI. Required standard. Touchstone evaluates
+      AWS CloudTrail — at least one trail must be multi-region,
+      actively logging, and include global service events.
+    severity: critical
+    policy_path: hipaa_security_rule/rule_164_312_b.rego
+
+  - code: "164.312(c)(2)"
+    title: Mechanism to Authenticate Electronic Protected Health Information
+    description: |
+      Implement electronic mechanisms to corroborate that ePHI has
+      not been altered or destroyed in an unauthorized manner.
+      Addressable specification under the Integrity standard
+      §164.312(c)(1). Touchstone evaluates AWS CloudTrail log
+      file validation — every trail must have validation enabled
+      so per-hour digests catch tampering with the underlying log
+      objects.
+    severity: high
+    policy_path: hipaa_security_rule/rule_164_312_c_2.rego
+
+  - code: "164.312(d)"
+    title: Person or Entity Authentication
+    description: |
+      Implement procedures to verify that a person or entity
+      seeking access to ePHI is the one claimed. Required
+      standard. Touchstone evaluates strong authentication on
+      both the AWS account password policy (length and reuse) and
+      MFA on console-enabled IAM users.
+    severity: critical
+    policy_path: hipaa_security_rule/rule_164_312_d.rego
+
+  - code: "164.312(e)(1)"
+    title: Transmission Security
+    description: |
+      Implement technical security measures to guard against
+      unauthorized access to ePHI that is being transmitted over
+      an electronic communications network. Required standard.
+      Touchstone evaluates AWS S3 bucket policy (denies non-HTTPS)
+      and Azure storage (HTTPS-only + TLS 1.2+).
+    severity: high
+    policy_path: hipaa_security_rule/rule_164_312_e_1.rego
