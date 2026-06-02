@@ -4404,6 +4404,9 @@ func TestPCI_NotApplicableWithoutResources(t *testing.T) {
 		"pci_dss_v4/req_7_2_5.rego",
 		"pci_dss_v4/req_8_3_6.rego",
 		"pci_dss_v4/req_8_4_1.rego",
+		"pci_dss_v4/req_10_2_1.rego",
+		"pci_dss_v4/req_11_3_1.rego",
+		"pci_dss_v4/req_11_5_1.rego",
 	} {
 		e, err := policy.NewEngine(packs.FS)
 		if err != nil {
@@ -4533,6 +4536,62 @@ func TestPCI_8_4_1_FailsWhenConsoleUserMissingMFA(t *testing.T) {
 func TestPCI_8_4_1_FailsWhenAzureMemberLacksMFA(t *testing.T) {
 	u := azureUser("naked@example.com", true, false, "Member")
 	if got := evalPCI(t, "pci_dss_v4/req_8_4_1.rego", u); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+// ── PCI DSS v4.0 — Req 10, 11 (logging / testing) ───────────────────────────
+
+// PCI 10.2.1 — CloudTrail audit logging enabled
+
+func TestPCI_10_2_1_PassesWhenMultiRegionLogging(t *testing.T) {
+	if got := evalPCI(t, "pci_dss_v4/req_10_2_1.rego", compliantTrail()); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestPCI_10_2_1_FailsWhenSingleRegion(t *testing.T) {
+	bad := trailWith(func(a map[string]any) { a["is_multi_region"] = false })
+	if got := evalPCI(t, "pci_dss_v4/req_10_2_1.rego", bad); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+func TestPCI_10_2_1_FailsWhenNotLogging(t *testing.T) {
+	bad := trailWith(func(a map[string]any) { a["is_logging"] = false })
+	if got := evalPCI(t, "pci_dss_v4/req_10_2_1.rego", bad); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+// PCI 11.3.1 — Security Hub vuln scanning
+
+func TestPCI_11_3_1_PassesWhenHubHasStandards(t *testing.T) {
+	hub := hubWithStandards("us-east-1", []any{"cis-aws-foundations"})
+	if got := evalPCI(t, "pci_dss_v4/req_11_3_1.rego", hub); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestPCI_11_3_1_FailsWhenHubHasNoStandards(t *testing.T) {
+	hub := hubWithStandards("us-east-1", []any{})
+	if got := evalPCI(t, "pci_dss_v4/req_11_3_1.rego", hub); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+// PCI 11.5.1 — GuardDuty IDS/IPS
+
+func TestPCI_11_5_1_PassesWhenDetectorEnabled(t *testing.T) {
+	d := enabledDetector("us-east-1")
+	if got := evalPCI(t, "pci_dss_v4/req_11_5_1.rego", d); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestPCI_11_5_1_FailsWhenAllDetectorsDisabled(t *testing.T) {
+	d := disabledDetector("us-east-1")
+	if got := evalPCI(t, "pci_dss_v4/req_11_5_1.rego", d); got != "fail" {
 		t.Fatalf("status = %q, want fail", got)
 	}
 }

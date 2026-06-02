@@ -77,3 +77,30 @@ controls:
       device) and Azure AD members (MFA-capable + MFA-registered).
     severity: critical
     policy_path: pci_dss_v4/req_8_4_1.rego
+
+  - code: "10.2.1"
+    title: Audit logs enabled and active for all system components
+    description: |
+      At least one CloudTrail trail must be multi-region AND
+      actively logging AND include global service events. Same
+      evidence as CIS 3.1.
+    severity: critical
+    policy_path: pci_dss_v4/req_10_2_1.rego
+
+  - code: "11.3.1"
+    title: Internal vulnerability scans are performed
+    description: |
+      AWS Security Hub must be enabled and at least one compliance
+      standard subscribed (CIS / AWS Foundational / PCI-DSS / NIST
+      800-53 standards each carry vulnerability checks). Same
+      evidence as SOC 2 CC7.1's AWS surface.
+    severity: high
+    policy_path: pci_dss_v4/req_11_3_1.rego
+
+  - code: "11.5.1"
+    title: Intrusion-detection / prevention techniques are used
+    description: |
+      At least one ENABLED AWS GuardDuty detector must exist. Same
+      evidence as SOC 2 CC6.8 / CC7.3.
+    severity: high
+    policy_path: pci_dss_v4/req_11_5_1.rego
