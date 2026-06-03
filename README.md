@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/ponack/touchstone-grc/releases/tag/v0.8.0"><img src="https://img.shields.io/badge/release-v0.8.0-C49020?style=flat-square" alt="v0.8.0" /></a>
+  <a href="https://github.com/ponack/touchstone-grc/releases/tag/v0.8.1"><img src="https://img.shields.io/badge/release-v0.8.1-C49020?style=flat-square" alt="v0.8.1" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue?style=flat-square" alt="AGPL-3.0" /></a>
 </p>
 
@@ -20,13 +20,13 @@
 
 Sibling project to [Crucible IAP](https://github.com/ponack/crucible-iap). Standalone — runs without Crucible. Optional integration via public API in a later phase.
 
-> **Status:** v0.8.0 shipped 2026-06-02 — **HIPAA Security Rule pack joins SOC 2 / CIS AWS / PCI DSS**, with 9 automatable rules: 5 from §164.312 Technical Safeguards (encryption at rest, audit controls, log integrity, authentication, transmission security) and 4 from §164.308 Administrative Safeguards (termination procedures, access establishment, malicious software protection, data backup). Physical safeguards (§164.310) are out of scope — cloud-only. The non-automatable administrative bits (workforce training, sanction policy, BAAs, contingency plan documentation) remain auditor-reviewed off-platform against signed policies.
+> **Status:** v0.8.1 shipped 2026-06-02 — **ISO/IEC 27001:2022 Annex A pack joins SOC 2 / CIS AWS / PCI DSS / HIPAA**, with 9 automatable controls from A.8 Technological (privileged access, secure authentication, malware protection, vulnerability management, backup, logging, monitoring, network security, cryptography). A.5 Organizational, A.6 People, and A.7 Physical themes are out of scope — procedural / cloud-only. A.8's procedural / SDLC / change-management items remain auditor-reviewed off-platform against signed policies. Every signal reuses evidence already collected for the other four packs — Phase 6 is now complete.
 
 ## What it does
 
 - Connects (read-only) to your cloud + SaaS estate. **AWS**, **Azure**, **GCP**, **GitHub**, **Linear**, and **Jira** are fully wired today; Okta, M365, and additional SaaS surfaces on the roadmap.
 - Runs scans, collects evidence artifacts, evaluates them against control packs via embedded OPA.
-- Ships **SOC 2 2017**, **CIS AWS Foundations v1.5.0**, **PCI DSS v4.0**, and **HIPAA Security Rule** control packs today; ISO 27001:2022 on the roadmap.
+- Ships **SOC 2 2017**, **CIS AWS Foundations v1.5.0**, **PCI DSS v4.0**, **HIPAA Security Rule**, and **ISO/IEC 27001:2022 Annex A** control packs today.
 - Append-only evidence trail, auditor read-only role, auditor-grade CSV + PDF exports.
 - Exception workflow for acknowledged gaps without erasing the audit trail.
 
@@ -70,8 +70,8 @@ docker compose up -d
 Or pull pre-built images directly:
 
 ```text
-ghcr.io/ponack/touchstone-api:0.8.0
-ghcr.io/ponack/touchstone-ui:0.8.0
+ghcr.io/ponack/touchstone-api:0.8.1
+ghcr.io/ponack/touchstone-ui:0.8.1
 ```
 
 Running behind an external reverse proxy (OPNsense, Traefik, nginx, separate Caddy)?
@@ -86,7 +86,7 @@ Caddy / nginx snippet.
 - **Phase 3** — Azure parity: AD, Storage, App Registrations, NSGs, Activity Log, Defender for Cloud, Azure SQL. *(complete — v0.3.0)*
 - **Phase 4** — Procedural connectors: GitHub (CC6.2 MFA enforcement) + Linear + Jira (CC7.4 incident response). *(complete — v0.4.0)*
 - **Phase 5** — GCP series: Workspace 2SV, Cloud Storage, VPC firewall, Cloud Logging sinks, Security Command Center, Cloud SQL. *(complete — v0.5.0)*
-- **Phase 6** — Framework breadth: CIS AWS Foundations v1.5 *(complete — v0.6.0, 51 rules)*, PCI DSS v4.0 *(complete — v0.7.0, 9 automatable rules)*, HIPAA Security Rule *(complete — v0.8.0, 9 automatable rules)*; ISO 27001:2022 Annex A pack follows.
+- **Phase 6** — Framework breadth: CIS AWS Foundations v1.5 *(complete — v0.6.0, 51 rules)*, PCI DSS v4.0 *(complete — v0.7.0, 9 automatable rules)*, HIPAA Security Rule *(complete — v0.8.0, 9 automatable rules)*, ISO/IEC 27001:2022 Annex A *(complete — v0.8.1, 9 automatable rules)*. **Phase 6 complete.**
 - **Phase 7** — GRC surface: personnel, asset inventory, vendor register, risk register.
 - **Phase 8** — Trust Center: public compliance page + questionnaire automation.
 - **Phase 9** — Optional Crucible IAP connector (scans Crucible stacks / runs / policies as evidence).
