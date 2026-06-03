@@ -8,11 +8,13 @@ import "embed"
 // FS embeds:
 //   - *.yaml — one manifest per framework
 //   - soc2_2017/*.rego, cis_aws_1_5/*.rego, pci_dss_v4/*.rego,
-//     hipaa_security_rule/*.rego, … — one policy per control
+//     hipaa_security_rule/*.rego, iso_27001_2022/*.rego, … —
+//     one policy per control
 //
 //go:embed *.yaml
 //go:embed soc2_2017/*.rego
 //go:embed cis_aws_1_5/*.rego
 //go:embed pci_dss_v4/*.rego
 //go:embed hipaa_security_rule/*.rego
+//go:embed iso_27001_2022/*.rego
 var FS embed.FS

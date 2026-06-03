@@ -4804,3 +4804,260 @@ func TestHIPAA_NotApplicableWithoutResources(t *testing.T) {
 		}
 	}
 }
+
+// ── ISO/IEC 27001:2022 Annex A — A.8 Technological Controls ─────────────────
+
+func evalISO(t *testing.T, path string, resource map[string]any) string {
+	t.Helper()
+	return evalCIS(t, path, resource)
+}
+
+// A.8.2 — Privileged access rights
+
+func TestISO_A_8_2_PassesWithNoDirectPolicy(t *testing.T) {
+	u := awsIAMUserWithDirectPolicies("alice", 0, 0)
+	if got := evalISO(t, "iso_27001_2022/a_8_2.rego", u); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestISO_A_8_2_FailsWithDirectPolicy(t *testing.T) {
+	u := awsIAMUserWithDirectPolicies("bob", 1, 0)
+	if got := evalISO(t, "iso_27001_2022/a_8_2.rego", u); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+// A.8.5 — Secure authentication
+
+func TestISO_A_8_5_PassesWhenPolicyAndMFAGood(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	d, err := e.Evaluate(context.Background(), "iso_27001_2022/a_8_5.rego",
+		map[string]any{"resources": []any{
+			awsPasswordPolicy(true, 14, 24),
+			awsIAMUserWithMFA("alice", true, []string{"arn:aws:iam::1:mfa/alice"}, nil),
+		}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "pass" {
+		t.Fatalf("status = %q, want pass; message=%q", d.Status, d.Message)
+	}
+}
+
+func TestISO_A_8_5_FailsWhenPasswordPolicyMissing(t *testing.T) {
+	if got := evalISO(t, "iso_27001_2022/a_8_5.rego", awsPasswordPolicy(false, 0, 0)); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+func TestISO_A_8_5_FailsWhenConsoleUserMissingMFA(t *testing.T) {
+	u := awsIAMUserWithMFA("bob", true, nil, nil)
+	if got := evalISO(t, "iso_27001_2022/a_8_5.rego", u); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+// A.8.7 — Protection against malware
+
+func TestISO_A_8_7_PassesWhenDetectorEnabled(t *testing.T) {
+	if got := evalISO(t, "iso_27001_2022/a_8_7.rego", enabledDetector("us-east-1")); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestISO_A_8_7_FailsWhenAllDetectorsDisabled(t *testing.T) {
+	if got := evalISO(t, "iso_27001_2022/a_8_7.rego", disabledDetector("us-east-1")); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+// A.8.8 — Management of technical vulnerabilities
+
+func TestISO_A_8_8_PassesWhenHubHasStandards(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	hub := hubWithStandards("us-east-1", []any{
+		"arn:aws:securityhub:us-east-1::standards/cis-aws-foundations-benchmark/v/1.2.0",
+	})
+	d, err := e.Evaluate(context.Background(), "iso_27001_2022/a_8_8.rego",
+		map[string]any{"resources": []any{hub, awsMarker()}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "pass" {
+		t.Fatalf("status = %q, want pass; message=%q", d.Status, d.Message)
+	}
+}
+
+func TestISO_A_8_8_FailsWhenHubMissing(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	d, err := e.Evaluate(context.Background(), "iso_27001_2022/a_8_8.rego",
+		map[string]any{"resources": []any{awsMarker()}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "fail" {
+		t.Fatalf("status = %q, want fail; message=%q", d.Status, d.Message)
+	}
+}
+
+// A.8.13 — Information backup
+
+func TestISO_A_8_13_PassesAtBaseline(t *testing.T) {
+	r := rdsInstance("prod-db", 14, true)
+	if got := evalISO(t, "iso_27001_2022/a_8_13.rego", r); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestISO_A_8_13_FailsBelowBaseline(t *testing.T) {
+	r := rdsInstance("short", 3, true)
+	if got := evalISO(t, "iso_27001_2022/a_8_13.rego", r); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+// A.8.15 — Logging
+
+func TestISO_A_8_15_PassesWhenTrailLogging(t *testing.T) {
+	if got := evalISO(t, "iso_27001_2022/a_8_15.rego", compliantTrail()); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestISO_A_8_15_FailsWhenSingleRegion(t *testing.T) {
+	bad := trailWith(func(a map[string]any) { a["is_multi_region"] = false })
+	if got := evalISO(t, "iso_27001_2022/a_8_15.rego", bad); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+// A.8.16 — Monitoring activities
+
+func TestISO_A_8_16_PassesWhenDetectionAndPostureActive(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	hub := hubWithStandards("us-east-1", []any{
+		"arn:aws:securityhub:us-east-1::standards/cis-aws-foundations-benchmark/v/1.2.0",
+	})
+	d, err := e.Evaluate(context.Background(), "iso_27001_2022/a_8_16.rego",
+		map[string]any{"resources": []any{enabledDetector("us-east-1"), hub}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "pass" {
+		t.Fatalf("status = %q, want pass; message=%q", d.Status, d.Message)
+	}
+}
+
+func TestISO_A_8_16_FailsWhenHubMissing(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	d, err := e.Evaluate(context.Background(), "iso_27001_2022/a_8_16.rego",
+		map[string]any{"resources": []any{enabledDetector("us-east-1")}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "fail" {
+		t.Fatalf("status = %q, want fail; message=%q", d.Status, d.Message)
+	}
+}
+
+func TestISO_A_8_16_FailsWhenDetectorMissing(t *testing.T) {
+	e, err := policy.NewEngine(packs.FS)
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	hub := hubWithStandards("us-east-1", []any{
+		"arn:aws:securityhub:us-east-1::standards/cis-aws-foundations-benchmark/v/1.2.0",
+	})
+	d, err := e.Evaluate(context.Background(), "iso_27001_2022/a_8_16.rego",
+		map[string]any{"resources": []any{hub, awsMarker()}})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if d.Status != "fail" {
+		t.Fatalf("status = %q, want fail; message=%q", d.Status, d.Message)
+	}
+}
+
+// A.8.20 — Networks security
+
+func TestISO_A_8_20_PassesOnLockedBucket(t *testing.T) {
+	b := awsS3Bucket("prod", true, true, true, nil)
+	if got := evalISO(t, "iso_27001_2022/a_8_20.rego", b); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestISO_A_8_20_FailsOnWorldOpenSSH(t *testing.T) {
+	sg := sgResource("arn:aws:ec2:us-east-1::security-group/sg-bad01234", []any{
+		sgRule("tcp", 22, 22, []any{"0.0.0.0/0"}, []any{}),
+	})
+	if got := evalISO(t, "iso_27001_2022/a_8_20.rego", sg); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+// A.8.24 — Use of cryptography
+
+func TestISO_A_8_24_PassesWhenS3Encrypted(t *testing.T) {
+	b := awsS3Bucket("prod", true, true, true, nil)
+	if got := evalISO(t, "iso_27001_2022/a_8_24.rego", b); got != "pass" {
+		t.Fatalf("status = %q, want pass", got)
+	}
+}
+
+func TestISO_A_8_24_FailsWhenS3Unencrypted(t *testing.T) {
+	b := awsS3Bucket("prod", false, true, true, nil)
+	if got := evalISO(t, "iso_27001_2022/a_8_24.rego", b); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+func TestISO_A_8_24_FailsWhenRDSUnencrypted(t *testing.T) {
+	r := rdsInstanceWithCIS("legacy", false, true, false)
+	if got := evalISO(t, "iso_27001_2022/a_8_24.rego", r); got != "fail" {
+		t.Fatalf("status = %q, want fail", got)
+	}
+}
+
+func TestISO_NotApplicableWithoutResources(t *testing.T) {
+	for _, rego := range []string{
+		"iso_27001_2022/a_8_2.rego",
+		"iso_27001_2022/a_8_5.rego",
+		"iso_27001_2022/a_8_7.rego",
+		"iso_27001_2022/a_8_8.rego",
+		"iso_27001_2022/a_8_13.rego",
+		"iso_27001_2022/a_8_15.rego",
+		"iso_27001_2022/a_8_16.rego",
+		"iso_27001_2022/a_8_20.rego",
+		"iso_27001_2022/a_8_24.rego",
+	} {
+		e, err := policy.NewEngine(packs.FS)
+		if err != nil {
+			t.Fatalf("NewEngine: %v", err)
+		}
+		d, err := e.Evaluate(context.Background(), rego,
+			map[string]any{"resources": []any{}})
+		if err != nil {
+			t.Fatalf("Evaluate %s: %v", rego, err)
+		}
+		if d.Status != "not_applicable" {
+			t.Fatalf("%s status = %q, want not_applicable", rego, d.Status)
+		}
+	}
+}
