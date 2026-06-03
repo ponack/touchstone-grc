@@ -1,0 +1,145 @@
+code: iso_27001_2022
+name: ISO/IEC 27001:2022 Annex A
+version: "2022"
+description: |
+  ISO/IEC 27001:2022 Annex A — Information Security Controls.
+  93 controls across 4 themes: A.5 Organizational (37), A.6
+  People (8), A.7 Physical (14), A.8 Technological (34).
+
+  Touchstone ships the automatable subset of A.8 Technological
+  Controls where existing AWS evidence directly satisfies the
+  control. A.5 Organizational and A.6 People controls
+  (information security policies, roles, classification,
+  training, awareness, supplier relationships, incident
+  procedures) are procedural and remain auditor-reviewed
+  off-platform. A.7 Physical controls (data centre access,
+  secure areas, equipment) are out of scope for a cloud-hosted
+  estate.
+
+  Within A.8, the procedural and SDLC-oriented controls (A.8.1
+  endpoint devices, A.8.3 access restriction, A.8.6 capacity,
+  A.8.9–12 configuration / deletion / masking / DLP, A.8.14
+  redundancy, A.8.17 clock sync, A.8.18–19 privileged utilities
+  / installed software, A.8.21–23 network services / segregation
+  / web filtering, A.8.25–34 secure development, application
+  security, secure architecture, secure coding, testing,
+  outsourced development, environment separation, change
+  management, test information, audit testing) also remain
+  auditor-reviewed off-platform against signed policies and
+  process documentation. Every signal in this pack reuses
+  evidence already collected for SOC 2 / CIS AWS / PCI DSS /
+  HIPAA — no scanner work was needed to ship the pack.
+
+controls:
+  - code: "A.8.2"
+    title: Privileged access rights
+    description: |
+      Allocation and use of privileged access rights shall be
+      restricted and managed. Touchstone evaluates AWS IAM users —
+      direct policy attachments are an anti-pattern; permissions
+      must flow through group membership so reviews / modifications
+      act on one named subject. Same evidence as CIS 1.15 /
+      PCI 7.2.5 / HIPAA 164.308(a)(4)(ii)(C).
+    severity: medium
+    policy_path: iso_27001_2022/a_8_2.rego
+
+  - code: "A.8.5"
+    title: Secure authentication
+    description: |
+      Secure authentication technologies and procedures shall be
+      implemented based on access restrictions and the topic-
+      specific policy on access control. Touchstone evaluates the
+      AWS account password policy (length and reuse) plus MFA on
+      every console-enabled IAM user. Same evidence as
+      HIPAA 164.312(d) / PCI 8.3.6 + 8.4.1 / CIS 1.5 + 1.10.
+    severity: critical
+    policy_path: iso_27001_2022/a_8_5.rego
+
+  - code: "A.8.7"
+    title: Protection against malware
+    description: |
+      Protection against malware shall be implemented and
+      supported by appropriate user awareness. Touchstone
+      evaluates AWS GuardDuty — at least one ENABLED detector
+      provides automated malicious-software detection on the AWS
+      surface. Same evidence as SOC 2 CC6.8 / PCI 11.5.1 /
+      HIPAA 164.308(a)(5)(ii)(B).
+    severity: high
+    policy_path: iso_27001_2022/a_8_7.rego
+
+  - code: "A.8.8"
+    title: Management of technical vulnerabilities
+    description: |
+      Information about technical vulnerabilities of information
+      systems in use shall be obtained, the organization's exposure
+      to such vulnerabilities shall be evaluated, and appropriate
+      measures shall be taken. Touchstone evaluates AWS Security
+      Hub — the hub must be enabled with at least one compliance
+      standard (CIS / AWS Foundational / PCI-DSS / NIST 800-53)
+      subscribed. Same evidence as SOC 2 CC7.1.
+    severity: high
+    policy_path: iso_27001_2022/a_8_8.rego
+
+  - code: "A.8.13"
+    title: Information backup
+    description: |
+      Backup copies of information, software and systems shall be
+      maintained and regularly tested in accordance with the
+      agreed topic-specific policy on backup. Touchstone evaluates
+      AWS RDS — every instance must carry at least 7 days of
+      automated backups. Same evidence as SOC 2 CC7.5 /
+      HIPAA 164.308(a)(7)(ii)(A).
+    severity: high
+    policy_path: iso_27001_2022/a_8_13.rego
+
+  - code: "A.8.15"
+    title: Logging
+    description: |
+      Logs that record activities, exceptions, faults and other
+      relevant events shall be produced, stored, protected and
+      analyzed. Touchstone evaluates AWS CloudTrail — at least
+      one trail must be multi-region, actively logging, and
+      include global service events. Same evidence as
+      HIPAA 164.312(b) / CIS 3.1 / PCI 10.2.1.
+    severity: critical
+    policy_path: iso_27001_2022/a_8_15.rego
+
+  - code: "A.8.16"
+    title: Monitoring activities
+    description: |
+      Networks, systems and applications shall be monitored for
+      anomalous behaviour and appropriate actions taken to
+      evaluate potential information security incidents.
+      Touchstone evaluates the integrated AWS monitoring
+      pipeline — GuardDuty (threat detection) AND Security Hub
+      (compliance posture) must both be active. Same evidence
+      composite as SOC 2 CC7.2 + CC7.3.
+    severity: high
+    policy_path: iso_27001_2022/a_8_16.rego
+
+  - code: "A.8.20"
+    title: Networks security
+    description: |
+      Networks and network devices shall be secured, managed and
+      controlled to protect information in systems and
+      applications. Touchstone evaluates AWS network exposure —
+      S3 Public Access Block on every bucket, plus EC2 security
+      groups with no world-open ingress on sensitive admin /
+      database ports (22, 3389, 3306, 5432, 1433, 1521, 27017,
+      6379, 9200, 11211) or all-protocols ingress. Same evidence
+      as SOC 2 CC6.6 / CIS 5.2 / CIS 2.1.5.
+    severity: high
+    policy_path: iso_27001_2022/a_8_20.rego
+
+  - code: "A.8.24"
+    title: Use of cryptography
+    description: |
+      Rules for the effective use of cryptography, including
+      cryptographic key management, shall be defined and
+      implemented. Touchstone evaluates encryption at rest across
+      AWS S3 buckets, EBS volumes (per-region encryption-by-
+      default), RDS instances, and EFS file systems. Any
+      unencrypted resource is a finding. Same evidence as
+      HIPAA 164.312(a)(2)(iv) / PCI 3.5.1.2.
+    severity: high
+    policy_path: iso_27001_2022/a_8_24.rego
