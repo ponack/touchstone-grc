@@ -9,6 +9,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 
+	"github.com/ponack/touchstone/internal/assets"
 	"github.com/ponack/touchstone/internal/auth"
 	"github.com/ponack/touchstone/internal/config"
 	"github.com/ponack/touchstone/internal/connectors"
@@ -93,6 +94,7 @@ func Run(ctx context.Context, cfg *config.Config, pool *pgxpool.Pool) error {
 	exceptions.NewHandler(pool).Register(v1)
 	exports.NewHandler(pool).Register(v1)
 	personnel.NewHandler(pool).Register(v1)
+	assets.NewHandler(pool).Register(v1)
 
 	updatesStore := updates.NewStore(pool)
 	updatesPoller := updates.NewPoller(updatesStore)
