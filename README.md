@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/ponack/touchstone-grc/releases/tag/v0.8.1"><img src="https://img.shields.io/badge/release-v0.8.1-C49020?style=flat-square" alt="v0.8.1" /></a>
+  <a href="https://github.com/ponack/touchstone-grc/releases/tag/v0.9.0"><img src="https://img.shields.io/badge/release-v0.9.0-C49020?style=flat-square" alt="v0.9.0" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue?style=flat-square" alt="AGPL-3.0" /></a>
 </p>
 
@@ -20,7 +20,7 @@
 
 Sibling project to [Crucible IAP](https://github.com/ponack/crucible-iap). Standalone — runs without Crucible. Optional integration via public API in a later phase.
 
-> **Status:** v0.8.1 shipped 2026-06-02 — **ISO/IEC 27001:2022 Annex A pack joins SOC 2 / CIS AWS / PCI DSS / HIPAA**, with 9 automatable controls from A.8 Technological (privileged access, secure authentication, malware protection, vulnerability management, backup, logging, monitoring, network security, cryptography). A.5 Organizational, A.6 People, and A.7 Physical themes are out of scope — procedural / cloud-only. A.8's procedural / SDLC / change-management items remain auditor-reviewed off-platform against signed policies. Every signal reuses evidence already collected for the other four packs — Phase 6 is now complete.
+> **Status:** v0.9.0 shipped 2026-06-04 — **Phase 7 (GRC surface) starts shipping with the personnel register**. Workforce members get full CRUD with status (active / on_leave / terminated), start / end dates, manager hierarchy, department, role, and free-form notes. The register is the auditor's "who had access when" source of truth and the foundation the asset, vendor, and risk registers will reference as owners of a row. First per-org RBAC helper lands too — auditor-role members can read but never mutate. Asset / vendor / risk registers follow on v0.9.x and v0.10.x.
 
 ## What it does
 
@@ -70,8 +70,8 @@ docker compose up -d
 Or pull pre-built images directly:
 
 ```text
-ghcr.io/ponack/touchstone-api:0.8.1
-ghcr.io/ponack/touchstone-ui:0.8.1
+ghcr.io/ponack/touchstone-api:0.9.0
+ghcr.io/ponack/touchstone-ui:0.9.0
 ```
 
 Running behind an external reverse proxy (OPNsense, Traefik, nginx, separate Caddy)?
@@ -87,7 +87,7 @@ Caddy / nginx snippet.
 - **Phase 4** — Procedural connectors: GitHub (CC6.2 MFA enforcement) + Linear + Jira (CC7.4 incident response). *(complete — v0.4.0)*
 - **Phase 5** — GCP series: Workspace 2SV, Cloud Storage, VPC firewall, Cloud Logging sinks, Security Command Center, Cloud SQL. *(complete — v0.5.0)*
 - **Phase 6** — Framework breadth: CIS AWS Foundations v1.5 *(complete — v0.6.0, 51 rules)*, PCI DSS v4.0 *(complete — v0.7.0, 9 automatable rules)*, HIPAA Security Rule *(complete — v0.8.0, 9 automatable rules)*, ISO/IEC 27001:2022 Annex A *(complete — v0.8.1, 9 automatable rules)*. **Phase 6 complete.**
-- **Phase 7** — GRC surface: personnel, asset inventory, vendor register, risk register.
+- **Phase 7** — GRC surface: personnel *(complete — v0.9.0)*, asset inventory, vendor register, risk register *(in progress)*.
 - **Phase 8** — Trust Center: public compliance page + questionnaire automation.
 - **Phase 9** — Optional Crucible IAP connector (scans Crucible stacks / runs / policies as evidence).
 
