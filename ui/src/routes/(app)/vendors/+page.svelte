@@ -8,6 +8,7 @@
 	} from '$lib/api/vendors';
 	import { toasts } from '$lib/stores/toasts.svelte';
 	import { Plus, Loader2, Download, AlertTriangle } from 'lucide-svelte';
+	import Pill from '$lib/components/Pill.svelte';
 
 	let vendors = $state<Vendor[]>([]);
 	let loading = $state(true);
@@ -42,27 +43,27 @@
 		return t.replace('_', ' ');
 	}
 
-	function critClass(c: VendorCriticality): string {
+	function critKind(c: VendorCriticality): 'danger' | 'warn' | 'neutral' | 'muted' {
 		switch (c) {
 			case 'critical':
-				return 'rounded bg-red-950/50 px-1.5 py-0.5 text-xs text-red-300';
+				return 'danger';
 			case 'high':
-				return 'rounded bg-amber-950/50 px-1.5 py-0.5 text-xs text-amber-300';
+				return 'warn';
 			case 'medium':
-				return 'rounded bg-zinc-800 px-1.5 py-0.5 text-xs text-zinc-300';
+				return 'neutral';
 			case 'low':
-				return 'rounded bg-zinc-900 px-1.5 py-0.5 text-xs text-zinc-500';
+				return 'muted';
 		}
 	}
 
-	function statusClass(s: VendorStatus): string {
+	function statusKind(s: VendorStatus): 'success' | 'info' | 'muted' {
 		switch (s) {
 			case 'active':
-				return 'rounded bg-emerald-950/50 px-1.5 py-0.5 text-xs text-emerald-300';
+				return 'success';
 			case 'prospective':
-				return 'rounded bg-sky-950/50 px-1.5 py-0.5 text-xs text-sky-300';
+				return 'info';
 			case 'terminated':
-				return 'rounded bg-zinc-800 px-1.5 py-0.5 text-xs text-zinc-400';
+				return 'muted';
 		}
 	}
 
@@ -260,10 +261,10 @@
 							<td class="px-4 py-2.5 text-zinc-300">{typeLabel(v.vendor_type)}</td>
 							<td class="px-4 py-2.5 text-zinc-400">{v.owner_name ?? '—'}</td>
 							<td class="px-4 py-2.5">
-								<span class={critClass(v.criticality)}>{v.criticality}</span>
+								<Pill kind={critKind(v.criticality)}>{v.criticality}</Pill>
 							</td>
 							<td class="px-4 py-2.5">
-								<span class={statusClass(v.status)}>{v.status}</span>
+								<Pill kind={statusKind(v.status)}>{v.status}</Pill>
 							</td>
 							<td class="px-4 py-2.5">
 								<span class="flex items-center gap-1.5 text-zinc-400">

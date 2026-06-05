@@ -2,6 +2,7 @@
 	import { listExceptions, revokeException, type Exception } from '$lib/api/exceptions';
 	import { toasts } from '$lib/stores/toasts.svelte';
 	import { Plus, Loader2 } from 'lucide-svelte';
+	import Pill from '$lib/components/Pill.svelte';
 
 	let exceptions = $state<Exception[]>([]);
 	let loading = $state(true);
@@ -120,14 +121,11 @@
 							<td class="px-4 py-2.5 text-zinc-400">{fmtExpiry(e.expires_at)}</td>
 							<td class="px-4 py-2.5">
 								{#if e.revoked_at}
-									<span class="rounded bg-zinc-800 px-1.5 py-0.5 text-xs text-zinc-400">revoked</span>
+									<Pill kind="muted">revoked</Pill>
 								{:else if e.expires_at && new Date(e.expires_at) < new Date()}
-									<span class="rounded bg-zinc-800 px-1.5 py-0.5 text-xs text-zinc-400">expired</span>
+									<Pill kind="muted">expired</Pill>
 								{:else}
-									<span
-										class="rounded bg-emerald-950/50 px-1.5 py-0.5 text-xs text-emerald-300"
-										>active</span
-									>
+									<Pill kind="success">active</Pill>
 								{/if}
 							</td>
 							<td class="px-4 py-2.5 text-right">

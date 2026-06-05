@@ -1,5 +1,26 @@
 @import 'tailwindcss';
 
+/* IBM Plex — self-hosted via @fontsource. Industrial-engineered
+ * voice that pairs with the Forge themes. Serif for display
+ * headings, sans for body, mono for control codes (CC6.1,
+ * A.8.20, 164.312(b), etc.). */
+@import '@fontsource/ibm-plex-serif/400.css';
+@import '@fontsource/ibm-plex-serif/600.css';
+@import '@fontsource/ibm-plex-sans/400.css';
+@import '@fontsource/ibm-plex-sans/500.css';
+@import '@fontsource/ibm-plex-sans/600.css';
+@import '@fontsource/ibm-plex-mono/400.css';
+@import '@fontsource/ibm-plex-mono/500.css';
+
+/* Register the trio with Tailwind v4's @theme system so
+ * font-serif / font-sans / font-mono utilities resolve to the
+ * Plex stack. */
+@theme {
+	--font-serif: 'IBM Plex Serif', ui-serif, Georgia, serif;
+	--font-sans: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+	--font-mono: 'IBM Plex Mono', ui-monospace, 'JetBrains Mono', monospace;
+}
+
 @utility bg-page {
 	background-color: var(--page-bg);
 }
@@ -242,11 +263,68 @@
 
 	html,
 	body {
-		background-color: var(--page-bg);
 		color: var(--color-zinc-100);
 		min-height: 100%;
+		font-family: var(--font-sans);
+		font-feature-settings: 'ss01', 'ss02';
 		transition: background-color 150ms ease, color 150ms ease;
 	}
+
+	/* Body atmosphere: an off-corner radial glow in the active
+	 * theme's accent + a fixed background so the gradient stays
+	 * anchored when content scrolls. */
+	body {
+		background:
+			radial-gradient(ellipse at 22% 8%, var(--accent-muted), transparent 55%),
+			radial-gradient(ellipse at 85% 100%, var(--accent-muted), transparent 60%),
+			var(--page-bg);
+		background-attachment: fixed;
+	}
+
+	/* Fine-grain noise overlay so the page reads as forged metal
+	 * rather than flat fill. ~2.5% opacity is the sweet spot —
+	 * present at close range, invisible at a glance. */
+	body::before {
+		content: '';
+		position: fixed;
+		inset: 0;
+		pointer-events: none;
+		z-index: -1;
+		background-image: url('/noise.svg');
+		background-size: 180px 180px;
+		opacity: 0.025;
+		mix-blend-mode: overlay;
+	}
+
+	:root.light body::before {
+		opacity: 0.04;
+		mix-blend-mode: multiply;
+	}
+
+	h1, h2, h3 {
+		font-family: var(--font-serif);
+		font-feature-settings: 'kern';
+		letter-spacing: -0.01em;
+	}
+
+	code, kbd, samp, pre, .font-mono {
+		font-family: var(--font-mono);
+	}
+}
+
+@keyframes pulse-dot {
+	0%, 100% {
+		opacity: 1;
+		transform: scale(1);
+	}
+	50% {
+		opacity: 0.55;
+		transform: scale(0.85);
+	}
+}
+
+.pulse-dot {
+	animation: pulse-dot 1.6s ease-in-out infinite;
 }
 
 /* Shared form input style used across many pages */
