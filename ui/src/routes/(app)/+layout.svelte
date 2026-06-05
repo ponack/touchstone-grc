@@ -13,6 +13,7 @@
 		ShieldOff,
 		Users,
 		Boxes,
+		Handshake,
 		Settings,
 		LogOut
 	} from 'lucide-svelte';
@@ -60,7 +61,8 @@
 		{ href: '/frameworks', label: 'Frameworks', icon: BookOpen },
 		{ href: '/exceptions', label: 'Exceptions', icon: ShieldOff },
 		{ href: '/personnel', label: 'Personnel', icon: Users },
-		{ href: '/assets', label: 'Assets', icon: Boxes }
+		{ href: '/assets', label: 'Assets', icon: Boxes },
+		{ href: '/vendors', label: 'Vendors', icon: Handshake }
 	];
 
 	const navItems = $derived(
