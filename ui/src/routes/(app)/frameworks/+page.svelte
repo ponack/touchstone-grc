@@ -6,7 +6,8 @@
 		type OrgFramework
 	} from '$lib/api/frameworks';
 	import { toasts } from '$lib/stores/toasts.svelte';
-	import { Loader2, CheckCircle2 } from 'lucide-svelte';
+	import { Loader2 } from 'lucide-svelte';
+	import Pill from '$lib/components/Pill.svelte';
 
 	let frameworks = $state<Framework[]>([]);
 	let enabled = $state<OrgFramework[]>([]);
@@ -64,11 +65,7 @@
 								<div class="mt-0.5 text-xs text-zinc-500">{f.code}</div>
 							</div>
 							{#if isEnabled}
-								<span
-									class="flex items-center gap-1 rounded bg-emerald-950/50 px-2 py-0.5 text-xs text-emerald-300"
-								>
-									<CheckCircle2 class="h-3.5 w-3.5" /> enabled
-								</span>
+								<Pill kind="success">enabled</Pill>
 							{:else}
 								<span class="text-xs text-zinc-500">not enabled</span>
 							{/if}

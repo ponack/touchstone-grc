@@ -2,6 +2,7 @@
 	import { listConnectors, type Connector } from '$lib/api/connectors';
 	import { toasts } from '$lib/stores/toasts.svelte';
 	import { Plus, Loader2 } from 'lucide-svelte';
+	import Pill from '$lib/components/Pill.svelte';
 
 	let connectors = $state<Connector[]>([]);
 	let loading = $state(true);
@@ -87,13 +88,9 @@
 							<td class="px-4 py-2.5 text-zinc-400">{fmtTime(c.last_scan_at)}</td>
 							<td class="px-4 py-2.5">
 								{#if c.is_disabled}
-									<span class="rounded bg-zinc-800 px-1.5 py-0.5 text-xs text-zinc-400"
-										>disabled</span
-									>
+									<Pill kind="muted">disabled</Pill>
 								{:else}
-									<span class="rounded bg-emerald-950/50 px-1.5 py-0.5 text-xs text-emerald-300"
-										>enabled</span
-									>
+									<Pill kind="success">enabled</Pill>
 								{/if}
 							</td>
 						</tr>

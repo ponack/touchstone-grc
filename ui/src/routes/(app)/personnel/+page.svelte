@@ -2,6 +2,7 @@
 	import { listPersonnel, type Person, type PersonStatus } from '$lib/api/personnel';
 	import { toasts } from '$lib/stores/toasts.svelte';
 	import { Plus, Loader2, Download } from 'lucide-svelte';
+	import Pill from '$lib/components/Pill.svelte';
 
 	let personnel = $state<Person[]>([]);
 	let loading = $state(true);
@@ -28,14 +29,14 @@
 		return new Date(s).toLocaleDateString();
 	}
 
-	function statusClass(s: PersonStatus): string {
+	function statusKind(s: PersonStatus): 'success' | 'warn' | 'muted' {
 		switch (s) {
 			case 'active':
-				return 'rounded bg-emerald-950/50 px-1.5 py-0.5 text-xs text-emerald-300';
+				return 'success';
 			case 'on_leave':
-				return 'rounded bg-amber-950/50 px-1.5 py-0.5 text-xs text-amber-300';
+				return 'warn';
 			case 'terminated':
-				return 'rounded bg-zinc-800 px-1.5 py-0.5 text-xs text-zinc-400';
+				return 'muted';
 		}
 	}
 
@@ -179,7 +180,7 @@
 							<td class="px-4 py-2.5 text-zinc-400">{fmtDate(p.start_date)}</td>
 							<td class="px-4 py-2.5 text-zinc-400">{fmtDate(p.end_date)}</td>
 							<td class="px-4 py-2.5">
-								<span class={statusClass(p.status)}>{p.status.replace('_', ' ')}</span>
+								<Pill kind={statusKind(p.status)}>{p.status.replace('_', ' ')}</Pill>
 							</td>
 						</tr>
 					{/each}
