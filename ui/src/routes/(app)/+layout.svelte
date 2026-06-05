@@ -12,6 +12,7 @@
 		BookOpen,
 		ShieldOff,
 		Users,
+		Boxes,
 		Settings,
 		LogOut
 	} from 'lucide-svelte';
@@ -58,7 +59,8 @@
 		{ href: '/evidence', label: 'Evidence', icon: FileCheck },
 		{ href: '/frameworks', label: 'Frameworks', icon: BookOpen },
 		{ href: '/exceptions', label: 'Exceptions', icon: ShieldOff },
-		{ href: '/personnel', label: 'Personnel', icon: Users }
+		{ href: '/personnel', label: 'Personnel', icon: Users },
+		{ href: '/assets', label: 'Assets', icon: Boxes }
 	];
 
 	const navItems = $derived(
