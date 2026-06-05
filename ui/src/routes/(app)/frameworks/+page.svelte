@@ -8,6 +8,8 @@
 	import { toasts } from '$lib/stores/toasts.svelte';
 	import { Loader2 } from 'lucide-svelte';
 	import Pill from '$lib/components/Pill.svelte';
+	import PageHeader from '$lib/components/PageHeader.svelte';
+	import PageHeaderMetric from '$lib/components/PageHeaderMetric.svelte';
 
 	let frameworks = $state<Framework[]>([]);
 	let enabled = $state<OrgFramework[]>([]);
@@ -26,6 +28,9 @@
 			}
 		})();
 	});
+
+	const enabledCount = $derived(enabled.length);
+	const totalCount = $derived(frameworks.length);
 </script>
 
 <svelte:head>
@@ -33,11 +38,18 @@
 </svelte:head>
 
 <div class="mx-auto max-w-5xl px-8 py-10">
-	<h1 class="text-2xl font-semibold tracking-tight text-zinc-100">Frameworks</h1>
-	<p class="mt-1 text-sm text-zinc-400">
-		Compliance control packs Touchstone ships. Enable the ones you are being audited against;
-		Touchstone evaluates every enabled control on every scan.
-	</p>
+	<PageHeader
+		kicker="Evidence pipeline"
+		title="Frameworks"
+		subtitle="Compliance control packs Touchstone ships. Enable the ones you are being audited against; Touchstone evaluates every enabled control on every scan."
+	>
+		{#snippet metrics()}
+			<dl class="grid grid-cols-2 gap-8 sm:max-w-[14rem]">
+				<PageHeaderMetric label="Enabled" value={enabledCount} tone="success" />
+				<PageHeaderMetric label="Shipped" value={totalCount} />
+			</dl>
+		{/snippet}
+	</PageHeader>
 
 	<div class="mt-8">
 		{#if loading}

@@ -3,6 +3,8 @@
 	import { toasts } from '$lib/stores/toasts.svelte';
 	import StatusPill from '$lib/components/StatusPill.svelte';
 	import { Loader2, Download } from 'lucide-svelte';
+	import PageHeader from '$lib/components/PageHeader.svelte';
+	import PageHeaderMetric from '$lib/components/PageHeaderMetric.svelte';
 
 	let evidence = $state<LatestEvidence[]>([]);
 	let loading = $state(true);
@@ -39,24 +41,31 @@
 </svelte:head>
 
 <div class="mx-auto max-w-5xl px-8 py-10">
-	<div class="flex items-start justify-between">
-		<div>
-			<h1 class="text-2xl font-semibold tracking-tight text-zinc-100">Current compliance state</h1>
-			<p class="mt-1 text-sm text-zinc-400">
-				The most recent evidence row for every control across every framework you have enabled.
-				This is the view to share with an auditor for a point-in-time snapshot.
-			</p>
-		</div>
-		{#if evidence.length > 0}
-			<a
-				href="/api/v1/exports/latest.csv"
-				class="flex items-center gap-1.5 rounded-md border border-zinc-700 px-3 py-1.5 text-sm text-zinc-200 hover:border-zinc-600"
-			>
-				<Download class="h-4 w-4" />
-				Export CSV
-			</a>
-		{/if}
-	</div>
+	<PageHeader
+		kicker="Evidence pipeline"
+		title="Current compliance state"
+		subtitle="The most recent evidence row for every control across every framework you have enabled. This is the view to share with an auditor for a point-in-time snapshot."
+	>
+		{#snippet actions()}
+			{#if evidence.length > 0}
+				<a
+					href="/api/v1/exports/latest.csv"
+					class="flex items-center gap-1.5 rounded-md border border-zinc-700 px-3 py-1.5 text-sm text-zinc-200 hover:border-zinc-600"
+				>
+					<Download class="h-4 w-4" />
+					Export CSV
+				</a>
+			{/if}
+		{/snippet}
+		{#snippet metrics()}
+			<dl class="grid grid-cols-4 gap-8 sm:max-w-md">
+				<PageHeaderMetric label="Passing" value={counts.pass} tone="success" />
+				<PageHeaderMetric label="Failing" value={counts.fail} tone="danger" />
+				<PageHeaderMetric label="Partial" value={counts.partial} tone="warn" />
+				<PageHeaderMetric label="N/A" value={counts.not_applicable} />
+			</dl>
+		{/snippet}
+	</PageHeader>
 
 	{#if loading}
 		<div class="mt-8 flex items-center gap-2 text-zinc-500">

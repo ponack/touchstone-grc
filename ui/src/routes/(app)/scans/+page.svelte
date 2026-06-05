@@ -4,6 +4,7 @@
 	import { toasts } from '$lib/stores/toasts.svelte';
 	import StatusPill from '$lib/components/StatusPill.svelte';
 	import { Plus, Loader2 } from 'lucide-svelte';
+	import PageHeader from '$lib/components/PageHeader.svelte';
 
 	let scans = $state<Scan[]>([]);
 	let connectors = $state<Connector[]>([]);
@@ -65,22 +66,22 @@
 </svelte:head>
 
 <div class="mx-auto max-w-5xl px-8 py-10">
-	<div class="flex items-center justify-between">
-		<div>
-			<h1 class="text-2xl font-semibold tracking-tight text-zinc-100">Scans</h1>
-			<p class="mt-1 text-sm text-zinc-400">
-				Each scan enumerates a connector and evaluates its results against every enabled control.
-			</p>
-		</div>
-		<a
-			href="/scans/new"
-			class="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-zinc-950"
-			style="background-color: var(--accent);"
-		>
-			<Plus class="h-4 w-4" />
-			Run scan
-		</a>
-	</div>
+	<PageHeader
+		kicker="Evidence pipeline"
+		title="Scans"
+		subtitle="Each scan enumerates a connector and evaluates its results against every enabled control."
+	>
+		{#snippet actions()}
+			<a
+				href="/scans/new"
+				class="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-zinc-950"
+				style="background-color: var(--accent);"
+			>
+				<Plus class="h-4 w-4" />
+				Run scan
+			</a>
+		{/snippet}
+	</PageHeader>
 
 	<div class="mt-8 overflow-hidden rounded-md border border-zinc-800">
 		{#if loading}

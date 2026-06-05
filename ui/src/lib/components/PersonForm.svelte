@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Person, PersonStatus } from '$lib/api/personnel';
 	import { Loader2 } from 'lucide-svelte';
+	import FieldsetSection from '$lib/components/FieldsetSection.svelte';
 
 	interface Props {
 		mode: 'create' | 'edit';
@@ -65,103 +66,112 @@
 	const eligibleManagers = $derived(others.filter((p) => p.id !== initial?.id));
 </script>
 
-<form onsubmit={handle} class="space-y-5">
-	<div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
-		<div>
-			<label for="full_name" class="mb-1 block text-sm text-zinc-300">Full name</label>
-			<input
-				id="full_name"
-				type="text"
-				required
-				bind:value={fullName}
-				class="field-input"
-				placeholder="Alice Example"
-			/>
+<form onsubmit={handle} class="space-y-8">
+	<FieldsetSection legend="Identity" divider={false}>
+		<div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
+			<div>
+				<label for="full_name" class="mb-1 block text-sm text-zinc-300">Full name</label>
+				<input
+					id="full_name"
+					type="text"
+					required
+					bind:value={fullName}
+					class="field-input"
+					placeholder="Alice Example"
+				/>
+			</div>
+			<div>
+				<label for="email" class="mb-1 block text-sm text-zinc-300">Email</label>
+				<input
+					id="email"
+					type="email"
+					required
+					bind:value={email}
+					class="field-input"
+					placeholder="alice@example.com"
+				/>
+			</div>
 		</div>
-		<div>
-			<label for="email" class="mb-1 block text-sm text-zinc-300">Email</label>
-			<input
-				id="email"
-				type="email"
-				required
-				bind:value={email}
-				class="field-input"
-				placeholder="alice@example.com"
-			/>
-		</div>
-	</div>
 
-	<div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
-		<div>
-			<label for="role" class="mb-1 block text-sm text-zinc-300">Role</label>
-			<input
-				id="role"
-				type="text"
-				required
-				bind:value={role}
-				class="field-input"
-				placeholder="Senior Engineer"
-			/>
+		<div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
+			<div>
+				<label for="role" class="mb-1 block text-sm text-zinc-300">Role</label>
+				<input
+					id="role"
+					type="text"
+					required
+					bind:value={role}
+					class="field-input"
+					placeholder="Senior Engineer"
+				/>
+			</div>
+			<div>
+				<label for="department" class="mb-1 block text-sm text-zinc-300">
+					Department <span class="text-xs text-zinc-500">(optional)</span>
+				</label>
+				<input
+					id="department"
+					type="text"
+					bind:value={department}
+					class="field-input"
+					placeholder="Platform"
+				/>
+			</div>
 		</div>
+
 		<div>
-			<label for="department" class="mb-1 block text-sm text-zinc-300">
-				Department <span class="text-xs text-zinc-500">(optional)</span>
+			<label for="manager" class="mb-1 block text-sm text-zinc-300">
+				Manager <span class="text-xs text-zinc-500">(optional)</span>
 			</label>
-			<input
-				id="department"
-				type="text"
-				bind:value={department}
-				class="field-input"
-				placeholder="Platform"
-			/>
-		</div>
-	</div>
-
-	<div>
-		<label for="manager" class="mb-1 block text-sm text-zinc-300">
-			Manager <span class="text-xs text-zinc-500">(optional)</span>
-		</label>
-		<select id="manager" bind:value={managerId} class="field-input">
-			<option value="">— none —</option>
-			{#each eligibleManagers as p (p.id)}
-				<option value={p.id}>{p.full_name} · {p.role}</option>
-			{/each}
-		</select>
-	</div>
-
-	<div class="grid grid-cols-1 gap-5 sm:grid-cols-3">
-		<div>
-			<label for="start_date" class="mb-1 block text-sm text-zinc-300">Start date</label>
-			<input id="start_date" type="date" required bind:value={startDate} class="field-input" />
-		</div>
-		<div>
-			<label for="end_date" class="mb-1 block text-sm text-zinc-300">
-				End date <span class="text-xs text-zinc-500">(required if terminated)</span>
-			</label>
-			<input id="end_date" type="date" bind:value={endDate} class="field-input" />
-		</div>
-		<div>
-			<label for="status" class="mb-1 block text-sm text-zinc-300">Status</label>
-			<select id="status" bind:value={status} class="field-input">
-				<option value="active">Active</option>
-				<option value="on_leave">On leave</option>
-				<option value="terminated">Terminated</option>
+			<select id="manager" bind:value={managerId} class="field-input">
+				<option value="">— none —</option>
+				{#each eligibleManagers as p (p.id)}
+					<option value={p.id}>{p.full_name} · {p.role}</option>
+				{/each}
 			</select>
 		</div>
-	</div>
+	</FieldsetSection>
 
-	<div>
-		<label for="notes" class="mb-1 block text-sm text-zinc-300">
-			Notes <span class="text-xs text-zinc-500">(optional)</span>
-		</label>
-		<textarea
-			id="notes"
-			rows="3"
-			bind:value={notes}
-			class="field-input"
-			placeholder="Access scope, change history, anything an auditor would want context on."
-		></textarea>
-	</div>
+	<FieldsetSection
+		legend="Tenure"
+		description="Start / end dates anchor the access-review window an auditor walks through."
+	>
+		<div class="grid grid-cols-1 gap-5 sm:grid-cols-3">
+			<div>
+				<label for="start_date" class="mb-1 block text-sm text-zinc-300">Start date</label>
+				<input id="start_date" type="date" required bind:value={startDate} class="field-input" />
+			</div>
+			<div>
+				<label for="end_date" class="mb-1 block text-sm text-zinc-300">
+					End date <span class="text-xs text-zinc-500">(required if terminated)</span>
+				</label>
+				<input id="end_date" type="date" bind:value={endDate} class="field-input" />
+			</div>
+			<div>
+				<label for="status" class="mb-1 block text-sm text-zinc-300">Status</label>
+				<select id="status" bind:value={status} class="field-input">
+					<option value="active">Active</option>
+					<option value="on_leave">On leave</option>
+					<option value="terminated">Terminated</option>
+				</select>
+			</div>
+		</div>
+	</FieldsetSection>
+
+	<FieldsetSection legend="Notes">
+		<div>
+			<label for="notes" class="mb-1 block text-sm text-zinc-300">
+				Free-form context <span class="text-xs text-zinc-500">(optional)</span>
+			</label>
+			<textarea
+				id="notes"
+				rows="3"
+				bind:value={notes}
+				class="field-input"
+				placeholder="Access scope, change history, anything an auditor would want context on."
+			></textarea>
+		</div>
+	</FieldsetSection>
 
 	<div class="flex items-center gap-3 pt-2">
 		<button

@@ -9,6 +9,8 @@
 	import { toasts } from '$lib/stores/toasts.svelte';
 	import { Plus, Loader2, Download } from 'lucide-svelte';
 	import Pill from '$lib/components/Pill.svelte';
+	import PageHeader from '$lib/components/PageHeader.svelte';
+	import PageHeaderMetric from '$lib/components/PageHeaderMetric.svelte';
 
 	let assets = $state<Asset[]>([]);
 	let loading = $state(true);
@@ -33,6 +35,12 @@
 			loading = false;
 		})();
 	});
+
+	const totalCount = $derived(assets.length);
+	const criticalHighCount = $derived(
+		assets.filter((a) => a.criticality === 'critical' || a.criticality === 'high').length
+	);
+	const decommissionedCount = $derived(assets.filter((a) => a.status === 'decommissioned').length);
 
 	function typeLabel(t: AssetType): string {
 		return t.replace('_', ' ');
@@ -113,15 +121,12 @@
 </svelte:head>
 
 <div class="mx-auto max-w-6xl px-8 py-10">
-	<div class="flex items-center justify-between">
-		<div>
-			<h1 class="text-2xl font-semibold tracking-tight text-zinc-100">Assets</h1>
-			<p class="mt-1 text-sm text-zinc-400">
-				Audited boundary: applications, services, data stores, cloud accounts, repos, and
-				infrastructure. Every asset carries a named owner from the personnel register.
-			</p>
-		</div>
-		<div class="flex items-center gap-2">
+	<PageHeader
+		kicker="Phase 7 · GRC register"
+		title="Assets"
+		subtitle="Audited boundary: applications, services, data stores, cloud accounts, repos, and infrastructure. Every asset carries a named owner from the personnel register."
+	>
+		{#snippet actions()}
 			<button
 				type="button"
 				onclick={exportCsv}
@@ -139,8 +144,15 @@
 				<Plus class="h-4 w-4" />
 				Add asset
 			</a>
-		</div>
-	</div>
+		{/snippet}
+		{#snippet metrics()}
+			<dl class="grid grid-cols-3 gap-8 sm:max-w-sm">
+				<PageHeaderMetric label="Total" value={totalCount} />
+				<PageHeaderMetric label="High / critical" value={criticalHighCount} tone="warn" />
+				<PageHeaderMetric label="Decommissioned" value={decommissionedCount} />
+			</dl>
+		{/snippet}
+	</PageHeader>
 
 	<div class="mt-6 flex flex-wrap items-center gap-4 text-sm">
 		<label class="flex items-center gap-2 text-zinc-400">

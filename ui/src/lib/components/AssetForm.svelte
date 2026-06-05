@@ -9,6 +9,7 @@
 	} from '$lib/api/assets';
 	import type { Person } from '$lib/api/personnel';
 	import { Loader2 } from 'lucide-svelte';
+	import FieldsetSection from '$lib/components/FieldsetSection.svelte';
 
 	interface Props {
 		mode: 'create' | 'edit';
@@ -88,142 +89,151 @@
 	}
 </script>
 
-<form onsubmit={handle} class="space-y-5">
-	<div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
+<form onsubmit={handle} class="space-y-8">
+	<FieldsetSection legend="Identity" divider={false}>
+		<div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
+			<div>
+				<label for="name" class="mb-1 block text-sm text-zinc-300">Name</label>
+				<input
+					id="name"
+					type="text"
+					required
+					bind:value={name}
+					class="field-input"
+					placeholder="prod-api"
+				/>
+			</div>
+			<div>
+				<label for="asset_type" class="mb-1 block text-sm text-zinc-300">Type</label>
+				<select id="asset_type" bind:value={assetType} class="field-input">
+					<option value="application">Application</option>
+					<option value="service">Service</option>
+					<option value="database">Database</option>
+					<option value="repository">Repository</option>
+					<option value="data_store">Data store</option>
+					<option value="cloud_account">Cloud account</option>
+					<option value="infrastructure">Infrastructure</option>
+					<option value="device">Device</option>
+					<option value="other">Other</option>
+				</select>
+			</div>
+		</div>
+
 		<div>
-			<label for="name" class="mb-1 block text-sm text-zinc-300">Name</label>
-			<input
-				id="name"
-				type="text"
-				required
-				bind:value={name}
+			<label for="description" class="mb-1 block text-sm text-zinc-300">
+				Description <span class="text-xs text-zinc-500">(optional)</span>
+			</label>
+			<textarea
+				id="description"
+				rows="2"
+				bind:value={description}
 				class="field-input"
-				placeholder="prod-api"
-			/>
+				placeholder="What the asset does, why it's in scope."
+			></textarea>
 		</div>
-		<div>
-			<label for="asset_type" class="mb-1 block text-sm text-zinc-300">Type</label>
-			<select id="asset_type" bind:value={assetType} class="field-input">
-				<option value="application">Application</option>
-				<option value="service">Service</option>
-				<option value="database">Database</option>
-				<option value="repository">Repository</option>
-				<option value="data_store">Data store</option>
-				<option value="cloud_account">Cloud account</option>
-				<option value="infrastructure">Infrastructure</option>
-				<option value="device">Device</option>
-				<option value="other">Other</option>
-			</select>
-		</div>
-	</div>
+	</FieldsetSection>
 
-	<div class="grid grid-cols-1 gap-5 sm:grid-cols-3">
-		<div>
-			<label for="environment" class="mb-1 block text-sm text-zinc-300">Environment</label>
-			<select id="environment" bind:value={environment} class="field-input">
-				<option value="production">Production</option>
-				<option value="staging">Staging</option>
-				<option value="development">Development</option>
-				<option value="other">Other</option>
-			</select>
+	<FieldsetSection
+		legend="Scope"
+		description="Environment / criticality / status drive audit-window slicing."
+	>
+		<div class="grid grid-cols-1 gap-5 sm:grid-cols-3">
+			<div>
+				<label for="environment" class="mb-1 block text-sm text-zinc-300">Environment</label>
+				<select id="environment" bind:value={environment} class="field-input">
+					<option value="production">Production</option>
+					<option value="staging">Staging</option>
+					<option value="development">Development</option>
+					<option value="other">Other</option>
+				</select>
+			</div>
+			<div>
+				<label for="criticality" class="mb-1 block text-sm text-zinc-300">Criticality</label>
+				<select id="criticality" bind:value={criticality} class="field-input">
+					<option value="low">Low</option>
+					<option value="medium">Medium</option>
+					<option value="high">High</option>
+					<option value="critical">Critical</option>
+				</select>
+			</div>
+			<div>
+				<label for="status" class="mb-1 block text-sm text-zinc-300">Status</label>
+				<select id="status" bind:value={status} class="field-input">
+					<option value="active">Active</option>
+					<option value="planned">Planned</option>
+					<option value="decommissioned">Decommissioned</option>
+				</select>
+			</div>
 		</div>
-		<div>
-			<label for="criticality" class="mb-1 block text-sm text-zinc-300">Criticality</label>
-			<select id="criticality" bind:value={criticality} class="field-input">
-				<option value="low">Low</option>
-				<option value="medium">Medium</option>
-				<option value="high">High</option>
-				<option value="critical">Critical</option>
-			</select>
-		</div>
-		<div>
-			<label for="status" class="mb-1 block text-sm text-zinc-300">Status</label>
-			<select id="status" bind:value={status} class="field-input">
-				<option value="active">Active</option>
-				<option value="planned">Planned</option>
-				<option value="decommissioned">Decommissioned</option>
-			</select>
-		</div>
-	</div>
 
-	<div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
+		<div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
+			<div>
+				<label for="classification" class="mb-1 block text-sm text-zinc-300">
+					Classification <span class="text-xs text-zinc-500">(optional)</span>
+				</label>
+				<select id="classification" bind:value={classification} class="field-input">
+					<option value="">— not set —</option>
+					<option value="public">Public</option>
+					<option value="internal">Internal</option>
+					<option value="confidential">Confidential</option>
+					<option value="restricted">Restricted</option>
+				</select>
+			</div>
+			<div>
+				<label for="owner" class="mb-1 block text-sm text-zinc-300">
+					Owner <span class="text-xs text-zinc-500">(personnel record)</span>
+				</label>
+				<select id="owner" bind:value={ownerId} class="field-input">
+					<option value="">— none —</option>
+					{#each owners as p (p.id)}
+						<option value={p.id}>{p.full_name} · {p.role}</option>
+					{/each}
+				</select>
+			</div>
+		</div>
+	</FieldsetSection>
+
+	<FieldsetSection legend="References & tags">
+		<div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
+			<div>
+				<label for="external_ref" class="mb-1 block text-sm text-zinc-300">
+					External reference <span class="text-xs text-zinc-500">(optional)</span>
+				</label>
+				<input
+					id="external_ref"
+					type="text"
+					bind:value={externalRef}
+					class="field-input"
+					placeholder="https://github.com/acme/prod-api"
+				/>
+			</div>
+			<div>
+				<label for="tags" class="mb-1 block text-sm text-zinc-300">
+					Tags <span class="text-xs text-zinc-500">(comma-separated)</span>
+				</label>
+				<input
+					id="tags"
+					type="text"
+					bind:value={tagsRaw}
+					class="field-input"
+					placeholder="pci, ephi, tier-1"
+				/>
+			</div>
+		</div>
+
 		<div>
-			<label for="classification" class="mb-1 block text-sm text-zinc-300">
-				Classification <span class="text-xs text-zinc-500">(optional)</span>
+			<label for="notes" class="mb-1 block text-sm text-zinc-300">
+				Notes <span class="text-xs text-zinc-500">(optional)</span>
 			</label>
-			<select id="classification" bind:value={classification} class="field-input">
-				<option value="">— not set —</option>
-				<option value="public">Public</option>
-				<option value="internal">Internal</option>
-				<option value="confidential">Confidential</option>
-				<option value="restricted">Restricted</option>
-			</select>
-		</div>
-		<div>
-			<label for="owner" class="mb-1 block text-sm text-zinc-300">
-				Owner <span class="text-xs text-zinc-500">(personnel record)</span>
-			</label>
-			<select id="owner" bind:value={ownerId} class="field-input">
-				<option value="">— none —</option>
-				{#each owners as p (p.id)}
-					<option value={p.id}>{p.full_name} · {p.role}</option>
-				{/each}
-			</select>
-		</div>
-	</div>
-
-	<div>
-		<label for="description" class="mb-1 block text-sm text-zinc-300">
-			Description <span class="text-xs text-zinc-500">(optional)</span>
-		</label>
-		<textarea
-			id="description"
-			rows="2"
-			bind:value={description}
-			class="field-input"
-			placeholder="What the asset does, why it's in scope."
-		></textarea>
-	</div>
-
-	<div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
-		<div>
-			<label for="external_ref" class="mb-1 block text-sm text-zinc-300">
-				External reference <span class="text-xs text-zinc-500">(optional)</span>
-			</label>
-			<input
-				id="external_ref"
-				type="text"
-				bind:value={externalRef}
+			<textarea
+				id="notes"
+				rows="3"
+				bind:value={notes}
 				class="field-input"
-				placeholder="https://github.com/acme/prod-api"
-			/>
+				placeholder="Change history, audit notes, anything an auditor would want context on."
+			></textarea>
 		</div>
-		<div>
-			<label for="tags" class="mb-1 block text-sm text-zinc-300">
-				Tags <span class="text-xs text-zinc-500">(comma-separated)</span>
-			</label>
-			<input
-				id="tags"
-				type="text"
-				bind:value={tagsRaw}
-				class="field-input"
-				placeholder="pci, ephi, tier-1"
-			/>
-		</div>
-	</div>
-
-	<div>
-		<label for="notes" class="mb-1 block text-sm text-zinc-300">
-			Notes <span class="text-xs text-zinc-500">(optional)</span>
-		</label>
-		<textarea
-			id="notes"
-			rows="3"
-			bind:value={notes}
-			class="field-input"
-			placeholder="Change history, audit notes, anything an auditor would want context on."
-		></textarea>
-	</div>
+	</FieldsetSection>
 
 	<div class="flex items-center gap-3 pt-2">
 		<button

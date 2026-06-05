@@ -3,6 +3,8 @@
 	import { toasts } from '$lib/stores/toasts.svelte';
 	import { Plus, Loader2, Download } from 'lucide-svelte';
 	import Pill from '$lib/components/Pill.svelte';
+	import PageHeader from '$lib/components/PageHeader.svelte';
+	import PageHeaderMetric from '$lib/components/PageHeaderMetric.svelte';
 
 	let personnel = $state<Person[]>([]);
 	let loading = $state(true);
@@ -23,6 +25,10 @@
 			loading = false;
 		})();
 	});
+
+	const activeCount = $derived(personnel.filter((p) => p.status === 'active').length);
+	const onLeaveCount = $derived(personnel.filter((p) => p.status === 'on_leave').length);
+	const terminatedCount = $derived(personnel.filter((p) => p.status === 'terminated').length);
 
 	function fmtDate(s?: string | null) {
 		if (!s) return '—';
@@ -89,15 +95,12 @@
 </svelte:head>
 
 <div class="mx-auto max-w-6xl px-8 py-10">
-	<div class="flex items-center justify-between">
-		<div>
-			<h1 class="text-2xl font-semibold tracking-tight text-zinc-100">Personnel</h1>
-			<p class="mt-1 text-sm text-zinc-400">
-				Workforce members whose access to in-scope systems is governed by the audited control set.
-				Auditors can confirm "who had access when" from start / end dates here.
-			</p>
-		</div>
-		<div class="flex items-center gap-2">
+	<PageHeader
+		kicker="Phase 7 · GRC register"
+		title="Personnel"
+		subtitle={'Workforce members whose access to in-scope systems is governed by the audited control set. Auditors can confirm "who had access when" from start / end dates here.'}
+	>
+		{#snippet actions()}
 			<button
 				type="button"
 				onclick={exportCsv}
@@ -115,8 +118,15 @@
 				<Plus class="h-4 w-4" />
 				Add member
 			</a>
-		</div>
-	</div>
+		{/snippet}
+		{#snippet metrics()}
+			<dl class="grid grid-cols-3 gap-8 sm:max-w-sm">
+				<PageHeaderMetric label="Active" value={activeCount} tone="success" />
+				<PageHeaderMetric label="On leave" value={onLeaveCount} tone="warn" />
+				<PageHeaderMetric label="Terminated" value={terminatedCount} />
+			</dl>
+		{/snippet}
+	</PageHeader>
 
 	<div class="mt-6 flex items-center gap-2 text-sm">
 		<label for="status-filter" class="text-zinc-400">Status</label>

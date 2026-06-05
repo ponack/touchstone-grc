@@ -8,6 +8,7 @@
 	} from '$lib/api/vendors';
 	import type { Person } from '$lib/api/personnel';
 	import { Loader2 } from 'lucide-svelte';
+	import FieldsetSection from '$lib/components/FieldsetSection.svelte';
 
 	interface Props {
 		mode: 'create' | 'edit';
@@ -108,200 +109,214 @@
 	}
 </script>
 
-<form onsubmit={handle} class="space-y-5">
-	<div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
+<form onsubmit={handle} class="space-y-8">
+	<FieldsetSection legend="Identity" divider={false}>
+		<div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
+			<div>
+				<label for="name" class="mb-1 block text-sm text-zinc-300">Name</label>
+				<input
+					id="name"
+					type="text"
+					required
+					bind:value={name}
+					class="field-input"
+					placeholder="Stripe"
+				/>
+			</div>
+			<div>
+				<label for="vendor_type" class="mb-1 block text-sm text-zinc-300">Type</label>
+				<select id="vendor_type" bind:value={vendorType} class="field-input">
+					<option value="saas">SaaS</option>
+					<option value="paas">PaaS</option>
+					<option value="iaas">IaaS</option>
+					<option value="processor">Processor (handles PII on our behalf)</option>
+					<option value="subprocessor">Subprocessor</option>
+					<option value="hardware">Hardware</option>
+					<option value="professional_services">Professional services</option>
+					<option value="other">Other</option>
+				</select>
+			</div>
+		</div>
+
+		<div class="grid grid-cols-1 gap-5 sm:grid-cols-3">
+			<div>
+				<label for="criticality" class="mb-1 block text-sm text-zinc-300">Criticality</label>
+				<select id="criticality" bind:value={criticality} class="field-input">
+					<option value="low">Low</option>
+					<option value="medium">Medium</option>
+					<option value="high">High</option>
+					<option value="critical">Critical</option>
+				</select>
+			</div>
+			<div>
+				<label for="status" class="mb-1 block text-sm text-zinc-300">Status</label>
+				<select id="status" bind:value={status} class="field-input">
+					<option value="prospective">Prospective</option>
+					<option value="active">Active</option>
+					<option value="terminated">Terminated</option>
+				</select>
+			</div>
+			<div>
+				<label for="data_classification" class="mb-1 block text-sm text-zinc-300">
+					Data class <span class="text-xs text-zinc-500">(optional)</span>
+				</label>
+				<select id="data_classification" bind:value={dataClassification} class="field-input">
+					<option value="">— not set —</option>
+					<option value="public">Public</option>
+					<option value="internal">Internal</option>
+					<option value="confidential">Confidential</option>
+					<option value="restricted">Restricted</option>
+				</select>
+			</div>
+		</div>
+
 		<div>
-			<label for="name" class="mb-1 block text-sm text-zinc-300">Name</label>
+			<label for="description" class="mb-1 block text-sm text-zinc-300">
+				Description <span class="text-xs text-zinc-500">(optional)</span>
+			</label>
+			<textarea
+				id="description"
+				rows="2"
+				bind:value={description}
+				class="field-input"
+				placeholder="What the vendor provides + why they're in scope."
+			></textarea>
+		</div>
+	</FieldsetSection>
+
+	<FieldsetSection
+		legend="Relationship"
+		description="Internal owner + contact for the auditor's communications trail."
+	>
+		<div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
+			<div>
+				<label for="owner" class="mb-1 block text-sm text-zinc-300">
+					Internal owner <span class="text-xs text-zinc-500">(personnel record)</span>
+				</label>
+				<select id="owner" bind:value={ownerId} class="field-input">
+					<option value="">— none —</option>
+					{#each owners as p (p.id)}
+						<option value={p.id}>{p.full_name} · {p.role}</option>
+					{/each}
+				</select>
+			</div>
+			<div>
+				<label for="website" class="mb-1 block text-sm text-zinc-300">
+					Website <span class="text-xs text-zinc-500">(optional)</span>
+				</label>
+				<input
+					id="website"
+					type="text"
+					bind:value={website}
+					class="field-input"
+					placeholder="https://stripe.com"
+				/>
+			</div>
+		</div>
+
+		<div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
+			<div>
+				<label for="contact_name" class="mb-1 block text-sm text-zinc-300">
+					Contact name <span class="text-xs text-zinc-500">(optional)</span>
+				</label>
+				<input
+					id="contact_name"
+					type="text"
+					bind:value={contactName}
+					class="field-input"
+					placeholder="Account manager"
+				/>
+			</div>
+			<div>
+				<label for="contact_email" class="mb-1 block text-sm text-zinc-300">
+					Contact email <span class="text-xs text-zinc-500">(optional)</span>
+				</label>
+				<input
+					id="contact_email"
+					type="email"
+					bind:value={contactEmail}
+					class="field-input"
+					placeholder="csm@stripe.com"
+				/>
+			</div>
+		</div>
+	</FieldsetSection>
+
+	<FieldsetSection
+		legend="Lifecycle & reviews"
+		description="Onboarded / offboarded dates + cadence anchor SOC 2 CC9.2 / ISO A.5.22 monitoring evidence."
+	>
+		<div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
+			<div>
+				<label for="onboarded_date" class="mb-1 block text-sm text-zinc-300">
+					Onboarded <span class="text-xs text-zinc-500">(optional)</span>
+				</label>
+				<input id="onboarded_date" type="date" bind:value={onboardedDate} class="field-input" />
+			</div>
+			<div>
+				<label for="offboarded_date" class="mb-1 block text-sm text-zinc-300">
+					Offboarded <span class="text-xs text-zinc-500">(required if terminated)</span>
+				</label>
+				<input id="offboarded_date" type="date" bind:value={offboardedDate} class="field-input" />
+			</div>
+		</div>
+
+		<div>
+			<label for="assurance_report" class="mb-1 block text-sm text-zinc-300">
+				Assurance report <span class="text-xs text-zinc-500">(optional)</span>
+			</label>
 			<input
-				id="name"
+				id="assurance_report"
 				type="text"
-				required
-				bind:value={name}
+				bind:value={assuranceReport}
 				class="field-input"
-				placeholder="Stripe"
+				placeholder="SOC 2 Type II 2025-Q3"
 			/>
 		</div>
-		<div>
-			<label for="vendor_type" class="mb-1 block text-sm text-zinc-300">Type</label>
-			<select id="vendor_type" bind:value={vendorType} class="field-input">
-				<option value="saas">SaaS</option>
-				<option value="paas">PaaS</option>
-				<option value="iaas">IaaS</option>
-				<option value="processor">Processor (handles PII on our behalf)</option>
-				<option value="subprocessor">Subprocessor</option>
-				<option value="hardware">Hardware</option>
-				<option value="professional_services">Professional services</option>
-				<option value="other">Other</option>
-			</select>
-		</div>
-	</div>
 
-	<div class="grid grid-cols-1 gap-5 sm:grid-cols-3">
-		<div>
-			<label for="criticality" class="mb-1 block text-sm text-zinc-300">Criticality</label>
-			<select id="criticality" bind:value={criticality} class="field-input">
-				<option value="low">Low</option>
-				<option value="medium">Medium</option>
-				<option value="high">High</option>
-				<option value="critical">Critical</option>
-			</select>
+		<div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
+			<div>
+				<label for="last_review_date" class="mb-1 block text-sm text-zinc-300">
+					Last review <span class="text-xs text-zinc-500">(optional)</span>
+				</label>
+				<input id="last_review_date" type="date" bind:value={lastReviewDate} class="field-input" />
+			</div>
+			<div>
+				<label for="next_review_date" class="mb-1 block text-sm text-zinc-300">
+					Next review <span class="text-xs text-zinc-500">(annual cadence is typical)</span>
+				</label>
+				<input id="next_review_date" type="date" bind:value={nextReviewDate} class="field-input" />
+			</div>
 		</div>
-		<div>
-			<label for="status" class="mb-1 block text-sm text-zinc-300">Status</label>
-			<select id="status" bind:value={status} class="field-input">
-				<option value="prospective">Prospective</option>
-				<option value="active">Active</option>
-				<option value="terminated">Terminated</option>
-			</select>
-		</div>
-		<div>
-			<label for="data_classification" class="mb-1 block text-sm text-zinc-300">
-				Data class <span class="text-xs text-zinc-500">(optional)</span>
-			</label>
-			<select id="data_classification" bind:value={dataClassification} class="field-input">
-				<option value="">— not set —</option>
-				<option value="public">Public</option>
-				<option value="internal">Internal</option>
-				<option value="confidential">Confidential</option>
-				<option value="restricted">Restricted</option>
-			</select>
-		</div>
-	</div>
+	</FieldsetSection>
 
-	<div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
+	<FieldsetSection legend="Tags & notes">
 		<div>
-			<label for="owner" class="mb-1 block text-sm text-zinc-300">
-				Internal owner <span class="text-xs text-zinc-500">(personnel record)</span>
-			</label>
-			<select id="owner" bind:value={ownerId} class="field-input">
-				<option value="">— none —</option>
-				{#each owners as p (p.id)}
-					<option value={p.id}>{p.full_name} · {p.role}</option>
-				{/each}
-			</select>
-		</div>
-		<div>
-			<label for="website" class="mb-1 block text-sm text-zinc-300">
-				Website <span class="text-xs text-zinc-500">(optional)</span>
+			<label for="tags" class="mb-1 block text-sm text-zinc-300">
+				Tags <span class="text-xs text-zinc-500">(comma-separated)</span>
 			</label>
 			<input
-				id="website"
+				id="tags"
 				type="text"
-				bind:value={website}
+				bind:value={tagsRaw}
 				class="field-input"
-				placeholder="https://stripe.com"
+				placeholder="pii, payments, tier-1"
 			/>
 		</div>
-	</div>
 
-	<div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
 		<div>
-			<label for="contact_name" class="mb-1 block text-sm text-zinc-300">
-				Contact name <span class="text-xs text-zinc-500">(optional)</span>
+			<label for="notes" class="mb-1 block text-sm text-zinc-300">
+				Free-form context <span class="text-xs text-zinc-500">(optional)</span>
 			</label>
-			<input
-				id="contact_name"
-				type="text"
-				bind:value={contactName}
+			<textarea
+				id="notes"
+				rows="3"
+				bind:value={notes}
 				class="field-input"
-				placeholder="Account manager"
-			/>
+				placeholder="Audit notes, contract specifics, DPA status, anything an auditor would want context on."
+			></textarea>
 		</div>
-		<div>
-			<label for="contact_email" class="mb-1 block text-sm text-zinc-300">
-				Contact email <span class="text-xs text-zinc-500">(optional)</span>
-			</label>
-			<input
-				id="contact_email"
-				type="email"
-				bind:value={contactEmail}
-				class="field-input"
-				placeholder="csm@stripe.com"
-			/>
-		</div>
-	</div>
-
-	<div>
-		<label for="description" class="mb-1 block text-sm text-zinc-300">
-			Description <span class="text-xs text-zinc-500">(optional)</span>
-		</label>
-		<textarea
-			id="description"
-			rows="2"
-			bind:value={description}
-			class="field-input"
-			placeholder="What the vendor provides + why they're in scope."
-		></textarea>
-	</div>
-
-	<div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
-		<div>
-			<label for="onboarded_date" class="mb-1 block text-sm text-zinc-300">
-				Onboarded <span class="text-xs text-zinc-500">(optional)</span>
-			</label>
-			<input id="onboarded_date" type="date" bind:value={onboardedDate} class="field-input" />
-		</div>
-		<div>
-			<label for="offboarded_date" class="mb-1 block text-sm text-zinc-300">
-				Offboarded <span class="text-xs text-zinc-500">(required if terminated)</span>
-			</label>
-			<input id="offboarded_date" type="date" bind:value={offboardedDate} class="field-input" />
-		</div>
-	</div>
-
-	<div>
-		<label for="assurance_report" class="mb-1 block text-sm text-zinc-300">
-			Assurance report <span class="text-xs text-zinc-500">(optional)</span>
-		</label>
-		<input
-			id="assurance_report"
-			type="text"
-			bind:value={assuranceReport}
-			class="field-input"
-			placeholder="SOC 2 Type II 2025-Q3"
-		/>
-	</div>
-
-	<div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
-		<div>
-			<label for="last_review_date" class="mb-1 block text-sm text-zinc-300">
-				Last review <span class="text-xs text-zinc-500">(optional)</span>
-			</label>
-			<input id="last_review_date" type="date" bind:value={lastReviewDate} class="field-input" />
-		</div>
-		<div>
-			<label for="next_review_date" class="mb-1 block text-sm text-zinc-300">
-				Next review <span class="text-xs text-zinc-500">(annual cadence is typical)</span>
-			</label>
-			<input id="next_review_date" type="date" bind:value={nextReviewDate} class="field-input" />
-		</div>
-	</div>
-
-	<div>
-		<label for="tags" class="mb-1 block text-sm text-zinc-300">
-			Tags <span class="text-xs text-zinc-500">(comma-separated)</span>
-		</label>
-		<input
-			id="tags"
-			type="text"
-			bind:value={tagsRaw}
-			class="field-input"
-			placeholder="pii, payments, tier-1"
-		/>
-	</div>
-
-	<div>
-		<label for="notes" class="mb-1 block text-sm text-zinc-300">
-			Notes <span class="text-xs text-zinc-500">(optional)</span>
-		</label>
-		<textarea
-			id="notes"
-			rows="3"
-			bind:value={notes}
-			class="field-input"
-			placeholder="Audit notes, contract specifics, DPA status, anything an auditor would want context on."
-		></textarea>
-	</div>
+	</FieldsetSection>
 
 	<div class="flex items-center gap-3 pt-2">
 		<button

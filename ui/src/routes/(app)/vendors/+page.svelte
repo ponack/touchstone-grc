@@ -9,6 +9,8 @@
 	import { toasts } from '$lib/stores/toasts.svelte';
 	import { Plus, Loader2, Download, AlertTriangle } from 'lucide-svelte';
 	import Pill from '$lib/components/Pill.svelte';
+	import PageHeader from '$lib/components/PageHeader.svelte';
+	import PageHeaderMetric from '$lib/components/PageHeaderMetric.svelte';
 
 	let vendors = $state<Vendor[]>([]);
 	let loading = $state(true);
@@ -35,6 +37,23 @@
 			loading = false;
 		})();
 	});
+
+	const activeCount = $derived(vendors.filter((v) => v.status === 'active').length);
+	const overdueCount = $derived(
+		vendors.filter((v) => {
+			if (!v.next_review_date) return false;
+			return new Date(v.next_review_date) < new Date();
+		}).length
+	);
+	const upcomingCount = $derived(
+		vendors.filter((v) => {
+			if (!v.next_review_date) return false;
+			const d = new Date(v.next_review_date);
+			const now = new Date();
+			const inDays = (d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+			return inDays >= 0 && inDays < 30;
+		}).length
+	);
 
 	function typeLabel(t: VendorType): string {
 		if (t === 'saas') return 'SaaS';
@@ -143,15 +162,12 @@
 </svelte:head>
 
 <div class="mx-auto max-w-6xl px-8 py-10">
-	<div class="flex items-center justify-between">
-		<div>
-			<h1 class="text-2xl font-semibold tracking-tight text-zinc-100">Vendors</h1>
-			<p class="mt-1 text-sm text-zinc-400">
-				Third-party suppliers within the audited boundary. Each row carries an internal owner from
-				the personnel register and the assurance evidence the auditor expects to see.
-			</p>
-		</div>
-		<div class="flex items-center gap-2">
+	<PageHeader
+		kicker="Phase 7 · GRC register"
+		title="Vendors"
+		subtitle="Third-party suppliers within the audited boundary. Each row carries an internal owner from the personnel register and the assurance evidence the auditor expects to see."
+	>
+		{#snippet actions()}
 			<button
 				type="button"
 				onclick={exportCsv}
@@ -169,8 +185,15 @@
 				<Plus class="h-4 w-4" />
 				Add vendor
 			</a>
-		</div>
-	</div>
+		{/snippet}
+		{#snippet metrics()}
+			<dl class="grid grid-cols-3 gap-8 sm:max-w-sm">
+				<PageHeaderMetric label="Active" value={activeCount} tone="success" />
+				<PageHeaderMetric label="Review overdue" value={overdueCount} tone="danger" />
+				<PageHeaderMetric label="Upcoming 30d" value={upcomingCount} tone="warn" />
+			</dl>
+		{/snippet}
+	</PageHeader>
 
 	<div class="mt-6 flex flex-wrap items-center gap-4 text-sm">
 		<label class="flex items-center gap-2 text-zinc-400">
