@@ -27,6 +27,7 @@ import (
 	"github.com/ponack/touchstone/internal/queue"
 	"github.com/ponack/touchstone/internal/scans"
 	"github.com/ponack/touchstone/internal/updates"
+	"github.com/ponack/touchstone/internal/vendors"
 )
 
 // Run starts the Echo HTTP server and blocks until ctx is cancelled.
@@ -95,6 +96,7 @@ func Run(ctx context.Context, cfg *config.Config, pool *pgxpool.Pool) error {
 	exports.NewHandler(pool).Register(v1)
 	personnel.NewHandler(pool).Register(v1)
 	assets.NewHandler(pool).Register(v1)
+	vendors.NewHandler(pool).Register(v1)
 
 	updatesStore := updates.NewStore(pool)
 	updatesPoller := updates.NewPoller(updatesStore)
