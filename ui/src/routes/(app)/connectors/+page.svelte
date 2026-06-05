@@ -3,6 +3,7 @@
 	import { toasts } from '$lib/stores/toasts.svelte';
 	import { Plus, Loader2 } from 'lucide-svelte';
 	import Pill from '$lib/components/Pill.svelte';
+	import PageHeader from '$lib/components/PageHeader.svelte';
 
 	let connectors = $state<Connector[]>([]);
 	let loading = $state(true);
@@ -30,22 +31,22 @@
 </svelte:head>
 
 <div class="mx-auto max-w-5xl px-8 py-10">
-	<div class="flex items-center justify-between">
-		<div>
-			<h1 class="text-2xl font-semibold tracking-tight text-zinc-100">Connectors</h1>
-			<p class="mt-1 text-sm text-zinc-400">
-				Read-only integrations Touchstone uses to gather evidence.
-			</p>
-		</div>
-		<a
-			href="/connectors/new"
-			class="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-zinc-950"
-			style="background-color: var(--accent);"
-		>
-			<Plus class="h-4 w-4" />
-			New connector
-		</a>
-	</div>
+	<PageHeader
+		kicker="Evidence pipeline"
+		title="Connectors"
+		subtitle="Read-only integrations Touchstone uses to gather evidence."
+	>
+		{#snippet actions()}
+			<a
+				href="/connectors/new"
+				class="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-zinc-950"
+				style="background-color: var(--accent);"
+			>
+				<Plus class="h-4 w-4" />
+				New connector
+			</a>
+		{/snippet}
+	</PageHeader>
 
 	<div class="mt-8 overflow-hidden rounded-md border border-zinc-800">
 		{#if loading}

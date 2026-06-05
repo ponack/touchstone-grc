@@ -53,22 +53,52 @@
 		}
 	}
 
-	const baseNavItems = [
-		{ href: '/', label: 'Dashboard', icon: LayoutDashboard, exact: true },
-		{ href: '/connectors', label: 'Connectors', icon: Cable },
-		{ href: '/scans', label: 'Scans', icon: ScanLine },
-		{ href: '/evidence', label: 'Evidence', icon: FileCheck },
-		{ href: '/frameworks', label: 'Frameworks', icon: BookOpen },
-		{ href: '/exceptions', label: 'Exceptions', icon: ShieldOff },
-		{ href: '/personnel', label: 'Personnel', icon: Users },
-		{ href: '/assets', label: 'Assets', icon: Boxes },
-		{ href: '/vendors', label: 'Vendors', icon: Handshake }
+	type NavItem = {
+		href: string;
+		label: string;
+		icon: typeof LayoutDashboard;
+		exact?: boolean;
+	};
+
+	type NavGroup = {
+		label?: string;
+		items: NavItem[];
+	};
+
+	const baseGroups: NavGroup[] = [
+		{
+			items: [{ href: '/', label: 'Dashboard', icon: LayoutDashboard, exact: true }]
+		},
+		{
+			label: 'Evidence pipeline',
+			items: [
+				{ href: '/connectors', label: 'Connectors', icon: Cable },
+				{ href: '/scans', label: 'Scans', icon: ScanLine },
+				{ href: '/evidence', label: 'Evidence', icon: FileCheck },
+				{ href: '/frameworks', label: 'Frameworks', icon: BookOpen },
+				{ href: '/exceptions', label: 'Exceptions', icon: ShieldOff }
+			]
+		},
+		{
+			label: 'GRC registers',
+			items: [
+				{ href: '/personnel', label: 'Personnel', icon: Users },
+				{ href: '/assets', label: 'Assets', icon: Boxes },
+				{ href: '/vendors', label: 'Vendors', icon: Handshake }
+			]
+		}
 	];
 
-	const navItems = $derived(
+	const navGroups = $derived(
 		auth.me?.is_admin
-			? [...baseNavItems, { href: '/settings', label: 'Settings', icon: Settings }]
-			: baseNavItems
+			? [
+					...baseGroups,
+					{
+						label: 'System',
+						items: [{ href: '/settings', label: 'Settings', icon: Settings }]
+					} as NavGroup
+				]
+			: baseGroups
 	);
 
 	function isActive(href: string, exact = false): boolean {
@@ -87,32 +117,43 @@
 				<span class="text-sm font-semibold tracking-tight text-zinc-100">Touchstone GRC</span>
 			</div>
 
-			<nav class="flex-1 px-2 py-2">
-				<ul class="space-y-1">
-					{#each navItems as item (item.href)}
-						{@const active = isActive(item.href, item.exact)}
-						{@const showBadge = item.href === '/settings' && updateAvailable}
-						<li>
-							<a
-								href={item.href}
-								class="flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm {active
-									? 'text-zinc-100'
-									: 'text-zinc-400 hover:text-zinc-200'}"
-								style={active ? 'background-color: var(--accent-muted);' : ''}
+			<nav class="flex-1 overflow-y-auto px-2 py-2">
+				{#each navGroups as group, gi (group.label ?? gi)}
+					<div class="{gi > 0 ? 'mt-5' : ''}">
+						{#if group.label}
+							<p
+								class="px-2.5 pb-1.5 text-[0.6rem] font-medium uppercase tracking-[0.22em] text-zinc-600"
 							>
-								<item.icon class="h-4 w-4" />
-								<span class="flex-1">{item.label}</span>
-								{#if showBadge}
-									<span
-										class="inline-block h-1.5 w-1.5 rounded-full bg-amber-400"
-										aria-label="Update available"
-										title="Update available"
-									></span>
-								{/if}
-							</a>
-						</li>
-					{/each}
-				</ul>
+								{group.label}
+							</p>
+						{/if}
+						<ul class="space-y-0.5">
+							{#each group.items as item (item.href)}
+								{@const active = isActive(item.href, item.exact)}
+								{@const showBadge = item.href === '/settings' && updateAvailable}
+								<li>
+									<a
+										href={item.href}
+										class="flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm {active
+											? 'text-zinc-100'
+											: 'text-zinc-400 hover:text-zinc-200'}"
+										style={active ? 'background-color: var(--accent-muted);' : ''}
+									>
+										<item.icon class="h-4 w-4" />
+										<span class="flex-1">{item.label}</span>
+										{#if showBadge}
+											<span
+												class="inline-block h-1.5 w-1.5 rounded-full bg-amber-400"
+												aria-label="Update available"
+												title="Update available"
+											></span>
+										{/if}
+									</a>
+								</li>
+							{/each}
+						</ul>
+					</div>
+				{/each}
 			</nav>
 
 			<div class="border-t border-zinc-800 px-3 py-3">
