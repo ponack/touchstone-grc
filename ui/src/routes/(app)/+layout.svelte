@@ -14,6 +14,7 @@
 		Users,
 		Boxes,
 		Handshake,
+		AlertOctagon,
 		Settings,
 		LogOut
 	} from 'lucide-svelte';
@@ -84,7 +85,8 @@
 			items: [
 				{ href: '/personnel', label: 'Personnel', icon: Users },
 				{ href: '/assets', label: 'Assets', icon: Boxes },
-				{ href: '/vendors', label: 'Vendors', icon: Handshake }
+				{ href: '/vendors', label: 'Vendors', icon: Handshake },
+				{ href: '/risks', label: 'Risks', icon: AlertOctagon }
 			]
 		}
 	];

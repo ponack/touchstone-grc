@@ -11,6 +11,7 @@
 	import { listExceptions, type Exception } from '$lib/api/exceptions';
 	import { listPersonnel, type Person } from '$lib/api/personnel';
 	import { listAssets, type Asset } from '$lib/api/assets';
+	import { listRisks, riskScore, type Risk } from '$lib/api/risks';
 	import { toasts } from '$lib/stores/toasts.svelte';
 	import StatusPill from '$lib/components/StatusPill.svelte';
 	import Pill from '$lib/components/Pill.svelte';
@@ -27,6 +28,7 @@
 	let personnel = $state<Person[]>([]);
 	let assets = $state<Asset[]>([]);
 	let allVendors = $state<Vendor[]>([]);
+	let risks = $state<Risk[]>([]);
 	let loading = $state(true);
 
 	$effect(() => {
@@ -41,7 +43,8 @@
 					exceptionsResp,
 					personnelResp,
 					assetsResp,
-					vendorsResp
+					vendorsResp,
+					risksResp
 				] = await Promise.all([
 					listScans({ limit: 1 }),
 					listLatest(),
@@ -51,7 +54,8 @@
 					listExceptions(false),
 					listPersonnel(),
 					listAssets(),
-					listVendors()
+					listVendors(),
+					listRisks()
 				]);
 				latestScan = scansResp[0] ?? null;
 				evidence = evidenceResp;
@@ -62,6 +66,7 @@
 				personnel = personnelResp;
 				assets = assetsResp;
 				allVendors = vendorsResp;
+				risks = risksResp;
 			} catch (e) {
 				toasts.error((e as Error).message);
 			} finally {
@@ -129,6 +134,20 @@
 	const activeAssetCount = $derived(assets.filter((a) => a.status === 'active').length);
 	const activeVendorCount = $derived(allVendors.filter((v) => v.status === 'active').length);
 	const activePersonnelCount = $derived(personnel.filter((p) => p.status === 'active').length);
+
+	// Open risks = identified or treating. Critical residual = residual
+	// score >= 12 (e.g. high × critical). Top-of-list is the worst few.
+	const openRisks = $derived(
+		risks.filter((r) => r.status === 'identified' || r.status === 'treating')
+	);
+	const criticalRisks = $derived(
+		openRisks
+			.map((r) => ({ r, score: riskScore(r.residual_likelihood, r.residual_impact) }))
+			.filter((x) => x.score >= 12)
+			.sort((a, b) => b.score - a.score)
+	);
+	const activeRiskCount = $derived(openRisks.length);
+	const totalRiskCount = $derived(risks.length);
 
 	function fmtRelative(iso?: string | null): string {
 		if (!iso) return '—';
@@ -316,6 +335,52 @@
 					{/if}
 				</div>
 
+				<!-- Critical residual risks -->
+				{#if criticalRisks.length > 0}
+					<div
+						class="rounded-md border border-red-900/40 bg-red-950/10 p-5 lg:col-span-2"
+					>
+						<div class="flex items-center justify-between">
+							<div class="flex items-center gap-2">
+								<AlertTriangle class="h-4 w-4 text-red-400" />
+								<h3 class="text-sm font-semibold text-zinc-100">
+									Open risks with residual score ≥ 12
+								</h3>
+							</div>
+							<Pill kind="danger" pulse>{criticalRisks.length}</Pill>
+						</div>
+						<p class="mt-2 text-xs text-zinc-400">
+							These are the risks the auditor will ask about first — open and still rated as high
+							exposure after the treatment plan.
+						</p>
+						<ul class="mt-3 space-y-2 text-sm">
+							{#each criticalRisks.slice(0, 5) as item (item.r.id)}
+								<li class="flex items-baseline justify-between gap-3">
+									<a
+										href="/risks/{item.r.id}"
+										class="min-w-0 truncate text-zinc-100 underline-offset-4 hover:underline"
+									>
+										<span class="text-zinc-300">{item.r.title}</span>
+										{#if item.r.owner_name}
+											<span class="ml-2 text-xs text-zinc-500">· owner {item.r.owner_name}</span>
+										{/if}
+									</a>
+									<Pill kind="danger">{item.score}</Pill>
+								</li>
+							{/each}
+						</ul>
+						{#if criticalRisks.length > 5}
+							<a
+								href="/risks?status=identified"
+								class="mt-3 inline-flex items-center gap-1 text-xs underline-offset-4 hover:underline"
+								style="color: var(--accent);"
+							>
+								View all {criticalRisks.length} <ArrowUpRight class="h-3 w-3" />
+							</a>
+						{/if}
+					</div>
+				{/if}
+
 				<!-- Orphaned ownership cross-link -->
 				{#if orphanedOwnerships.length > 0}
 					<div
@@ -380,7 +445,7 @@
 				Phase 7 GRC inventory at a glance. Click into any register for the full ledger.
 			</p>
 
-			<div class="mt-4 grid gap-4 sm:grid-cols-3">
+			<div class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
 				<a
 					href="/personnel"
 					class="rounded-md border border-zinc-800 bg-zinc-900/40 p-5 hover:border-zinc-700"
@@ -415,6 +480,18 @@
 					<div class="mt-2 flex items-baseline gap-2">
 						<span class="font-serif text-2xl text-zinc-100">{activeVendorCount}</span>
 						<span class="text-xs text-zinc-500">active of {allVendors.length}</span>
+					</div>
+				</a>
+				<a
+					href="/risks"
+					class="rounded-md border border-zinc-800 bg-zinc-900/40 p-5 hover:border-zinc-700"
+				>
+					<p class="text-[0.65rem] font-medium uppercase tracking-[0.22em] text-zinc-500">
+						Risks
+					</p>
+					<div class="mt-2 flex items-baseline gap-2">
+						<span class="font-serif text-2xl text-zinc-100">{activeRiskCount}</span>
+						<span class="text-xs text-zinc-500">open of {totalRiskCount}</span>
 					</div>
 				</a>
 			</div>
