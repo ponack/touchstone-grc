@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/ponack/touchstone-grc/releases/tag/v0.9.2"><img src="https://img.shields.io/badge/release-v0.9.2-C49020?style=flat-square" alt="v0.9.2" /></a>
+  <a href="https://github.com/ponack/touchstone-grc/releases/tag/v0.9.3"><img src="https://img.shields.io/badge/release-v0.9.3-C49020?style=flat-square" alt="v0.9.3" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue?style=flat-square" alt="AGPL-3.0" /></a>
 </p>
 
@@ -20,7 +20,7 @@
 
 Sibling project to [Crucible IAP](https://github.com/ponack/crucible-iap). Standalone — runs without Crucible. Optional integration via public API in a later phase.
 
-> **Status:** v0.9.2 shipped 2026-06-05 — **Phase 7 gains the vendor / supplier register**. Third-party suppliers in scope get full CRUD with vendor_type (SaaS / PaaS / IaaS / processor / subprocessor / hardware / professional_services / other), criticality, status (prospective / active / terminated), owner from personnel, data classification, onboarded / offboarded dates, assurance_report (e.g. "SOC 2 Type II 2025-Q3"), last + next review dates, contact details, and free-form tags. The list view ships a `review_due` filter for auditor cadence checks plus overdue (red) / upcoming-30d (amber) visual states on the next-review column. Maps to SOC 2 CC9.2 / PCI DSS 12.8 / ISO/IEC 27001:2022 A.5.19-22. Risk register follows.
+> **Status:** v0.9.3 shipped 2026-06-05 — **visual lift**. IBM Plex trio (Serif display + Sans body + Mono control codes) replaces the system font stack. Each Forge theme gains a radial-gradient + noise atmosphere so the page reads as forged metal rather than flat fill. Status pills carry colored dots with pulse animation on in-flight states. Pages adopt a kicker / serif-title / live-metrics header pattern. Sidebar reorganized into Evidence pipeline / GRC registers / System groups. Forms section into Identity / Tenure / Scope / Lifecycle clusters. Dashboard now surfaces operational signal — compliance posture %, failing controls, vendor reviews due, plus an auditor-grade cross-link finding ("terminated personnel still own assets / vendors"). Empty states explain what each register anchors. No backend touch — surface only. Risk register is the next Phase 7 piece.
 
 ## What it does
 
@@ -70,8 +70,8 @@ docker compose up -d
 Or pull pre-built images directly:
 
 ```text
-ghcr.io/ponack/touchstone-api:0.9.2
-ghcr.io/ponack/touchstone-ui:0.9.2
+ghcr.io/ponack/touchstone-api:0.9.3
+ghcr.io/ponack/touchstone-ui:0.9.3
 ```
 
 Running behind an external reverse proxy (OPNsense, Traefik, nginx, separate Caddy)?
@@ -87,7 +87,7 @@ Caddy / nginx snippet.
 - **Phase 4** — Procedural connectors: GitHub (CC6.2 MFA enforcement) + Linear + Jira (CC7.4 incident response). *(complete — v0.4.0)*
 - **Phase 5** — GCP series: Workspace 2SV, Cloud Storage, VPC firewall, Cloud Logging sinks, Security Command Center, Cloud SQL. *(complete — v0.5.0)*
 - **Phase 6** — Framework breadth: CIS AWS Foundations v1.5 *(complete — v0.6.0, 51 rules)*, PCI DSS v4.0 *(complete — v0.7.0, 9 automatable rules)*, HIPAA Security Rule *(complete — v0.8.0, 9 automatable rules)*, ISO/IEC 27001:2022 Annex A *(complete — v0.8.1, 9 automatable rules)*. **Phase 6 complete.**
-- **Phase 7** — GRC surface: personnel *(complete — v0.9.0)*, asset inventory *(complete — v0.9.1)*, vendor register *(complete — v0.9.2)*, risk register *(in progress)*.
+- **Phase 7** — GRC surface: personnel *(complete — v0.9.0)*, asset inventory *(complete — v0.9.1)*, vendor register *(complete — v0.9.2)*, **visual lift** *(complete — v0.9.3 — IBM Plex, atmosphere, page-header pattern, sidebar grouping, real dashboard, skeleton + empty states)*, risk register *(in progress)*.
 - **Phase 8** — Trust Center: public compliance page + questionnaire automation.
 - **Phase 9** — Optional Crucible IAP connector (scans Crucible stacks / runs / policies as evidence).
 
