@@ -25,6 +25,7 @@ import (
 	"github.com/ponack/touchstone/internal/frameworks"
 	"github.com/ponack/touchstone/internal/personnel"
 	"github.com/ponack/touchstone/internal/queue"
+	"github.com/ponack/touchstone/internal/risks"
 	"github.com/ponack/touchstone/internal/scans"
 	"github.com/ponack/touchstone/internal/updates"
 	"github.com/ponack/touchstone/internal/vendors"
@@ -97,6 +98,7 @@ func Run(ctx context.Context, cfg *config.Config, pool *pgxpool.Pool) error {
 	personnel.NewHandler(pool).Register(v1)
 	assets.NewHandler(pool).Register(v1)
 	vendors.NewHandler(pool).Register(v1)
+	risks.NewHandler(pool).Register(v1)
 
 	updatesStore := updates.NewStore(pool)
 	updatesPoller := updates.NewPoller(updatesStore)
