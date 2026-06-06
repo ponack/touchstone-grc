@@ -1,9 +1,12 @@
 <script lang="ts">
 	import { listExceptions, revokeException, type Exception } from '$lib/api/exceptions';
 	import { toasts } from '$lib/stores/toasts.svelte';
-	import { Plus, Loader2 } from 'lucide-svelte';
+	import { Plus } from 'lucide-svelte';
 	import Pill from '$lib/components/Pill.svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
+	import SkeletonRows from '$lib/components/SkeletonRows.svelte';
+	import EmptyState from '$lib/components/EmptyState.svelte';
+	import { ShieldOff } from 'lucide-svelte';
 
 	let exceptions = $state<Exception[]>([]);
 	let loading = $state(true);
@@ -78,20 +81,28 @@
 
 	<div class="mt-3 overflow-hidden rounded-md border border-zinc-800">
 		{#if loading}
-			<div class="flex items-center justify-center py-10 text-zinc-500">
-				<Loader2 class="h-5 w-5 animate-spin" />
-			</div>
+			<SkeletonRows count={5} columns={['w-48', 'w-64', 'w-20', 'w-24', 'w-16']} />
 		{:else if exceptions.length === 0}
-			<div class="px-6 py-16 text-center">
-				<p class="text-sm text-zinc-400">
-					{includeRevoked ? 'No exceptions granted yet.' : 'No active exceptions.'}
-				</p>
-				<a
-					href="/exceptions/new"
-					class="mt-3 inline-block text-sm underline decoration-dotted underline-offset-4"
-					style="color: var(--accent);">Grant one →</a
-				>
-			</div>
+			<EmptyState
+				icon={ShieldOff}
+				title={includeRevoked ? 'No exceptions granted yet' : 'No active exceptions'}
+				body="An exception acknowledges a failing control with a written reason. The failed evidence row stays intact for audit; future scans flag the gap as accepted until the exception expires or is revoked."
+				samples={[
+					'Service-account keys rotated by an external pipeline (CC6.3 scope)',
+					'Public bucket fronting a static marketing site (CC6.6 scope)',
+					'Non-billing-impacting low-criticality CIS findings during migration'
+				]}
+			>
+				{#snippet cta()}
+					<a
+						href="/exceptions/new"
+						class="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-zinc-950"
+						style="background-color: var(--accent);"
+					>
+						<Plus class="h-4 w-4" /> Grant an exception
+					</a>
+				{/snippet}
+			</EmptyState>
 		{:else}
 			<table class="w-full text-sm">
 				<thead class="bg-zinc-900/60 text-left text-xs uppercase tracking-wide text-zinc-500">

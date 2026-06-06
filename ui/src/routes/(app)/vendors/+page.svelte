@@ -7,10 +7,12 @@
 		type VendorType
 	} from '$lib/api/vendors';
 	import { toasts } from '$lib/stores/toasts.svelte';
-	import { Plus, Loader2, Download, AlertTriangle } from 'lucide-svelte';
+	import { Plus, Download, AlertTriangle, Handshake } from 'lucide-svelte';
 	import Pill from '$lib/components/Pill.svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import PageHeaderMetric from '$lib/components/PageHeaderMetric.svelte';
+	import SkeletonRows from '$lib/components/SkeletonRows.svelte';
+	import EmptyState from '$lib/components/EmptyState.svelte';
 
 	let vendors = $state<Vendor[]>([]);
 	let loading = $state(true);
@@ -235,22 +237,31 @@
 
 	<div class="mt-3 overflow-hidden rounded-md border border-zinc-800">
 		{#if loading}
-			<div class="flex items-center justify-center py-10 text-zinc-500">
-				<Loader2 class="h-5 w-5 animate-spin" />
-			</div>
+			<SkeletonRows count={6} columns={['w-56', 'w-24', 'w-32', 'w-20', 'w-20', 'w-28']} />
 		{:else if vendors.length === 0}
-			<div class="px-6 py-16 text-center">
-				<p class="text-sm text-zinc-400">
-					{reviewDueOnly
-						? 'No vendors with overdue or missing reviews.'
-						: 'No vendors matching the current filters.'}
-				</p>
-				<a
-					href="/vendors/new"
-					class="mt-3 inline-block text-sm underline decoration-dotted underline-offset-4"
-					style="color: var(--accent);">Add the first one →</a
-				>
-			</div>
+			<EmptyState
+				icon={Handshake}
+				title={reviewDueOnly
+					? 'No vendors with overdue or missing reviews'
+					: 'No vendors in the register yet'}
+				body="Third-party risk lives here. Every supplier inside the audited boundary needs a named internal owner, an assurance report on file, and a review cadence the auditor can verify."
+				samples={[
+					'Cloud providers (AWS, Azure, GCP) backing in-scope workloads',
+					'Payment processors + KYC / fraud vendors',
+					'PII-touching SaaS (CRM, support, comms, analytics)',
+					'Professional-services firms with privileged access'
+				]}
+			>
+				{#snippet cta()}
+					<a
+						href="/vendors/new"
+						class="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-zinc-950"
+						style="background-color: var(--accent);"
+					>
+						<Plus class="h-4 w-4" /> Add the first vendor
+					</a>
+				{/snippet}
+			</EmptyState>
 		{:else}
 			<table class="w-full text-sm">
 				<thead class="bg-zinc-900/60 text-left text-xs uppercase tracking-wide text-zinc-500">

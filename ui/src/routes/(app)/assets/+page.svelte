@@ -7,10 +7,12 @@
 		type AssetType
 	} from '$lib/api/assets';
 	import { toasts } from '$lib/stores/toasts.svelte';
-	import { Plus, Loader2, Download } from 'lucide-svelte';
+	import { Plus, Download, Boxes } from 'lucide-svelte';
 	import Pill from '$lib/components/Pill.svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import PageHeaderMetric from '$lib/components/PageHeaderMetric.svelte';
+	import SkeletonRows from '$lib/components/SkeletonRows.svelte';
+	import EmptyState from '$lib/components/EmptyState.svelte';
 
 	let assets = $state<Asset[]>([]);
 	let loading = $state(true);
@@ -191,18 +193,31 @@
 
 	<div class="mt-3 overflow-hidden rounded-md border border-zinc-800">
 		{#if loading}
-			<div class="flex items-center justify-center py-10 text-zinc-500">
-				<Loader2 class="h-5 w-5 animate-spin" />
-			</div>
+			<SkeletonRows count={6} columns={['w-56', 'w-24', 'w-32', 'w-20', 'w-20', 'w-20']} />
 		{:else if assets.length === 0}
-			<div class="px-6 py-16 text-center">
-				<p class="text-sm text-zinc-400">No assets matching the current filters.</p>
-				<a
-					href="/assets/new"
-					class="mt-3 inline-block text-sm underline decoration-dotted underline-offset-4"
-					style="color: var(--accent);">Add the first one →</a
-				>
-			</div>
+			<EmptyState
+				icon={Boxes}
+				title={typeFilter || statusFilter
+					? 'No assets matching the current filters'
+					: 'No assets in the register yet'}
+				body="The asset register captures the audited boundary so a reviewer can see exactly which systems were in scope when each control was evaluated."
+				samples={[
+					'Production applications + services with customer data',
+					'Databases + data stores holding PII / PHI / payment data',
+					'Cloud accounts + IaC repositories',
+					'Devices with persistent in-scope access'
+				]}
+			>
+				{#snippet cta()}
+					<a
+						href="/assets/new"
+						class="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-zinc-950"
+						style="background-color: var(--accent);"
+					>
+						<Plus class="h-4 w-4" /> Add the first asset
+					</a>
+				{/snippet}
+			</EmptyState>
 		{:else}
 			<table class="w-full text-sm">
 				<thead class="bg-zinc-900/60 text-left text-xs uppercase tracking-wide text-zinc-500">
