@@ -63,6 +63,7 @@ type vendorOut struct {
 	NextReviewDate     *time.Time `json:"next_review_date,omitempty"`
 	Tags               []string   `json:"tags"`
 	Notes              *string    `json:"notes,omitempty"`
+	TrustCenterPublic  bool       `json:"trust_center_public"`
 	CreatedAt          time.Time  `json:"created_at"`
 	UpdatedAt          time.Time  `json:"updated_at"`
 }
@@ -85,6 +86,7 @@ type vendorIn struct {
 	NextReviewDate     *time.Time `json:"next_review_date,omitempty"`
 	Tags               []string   `json:"tags,omitempty"`
 	Notes              string     `json:"notes,omitempty"`
+	TrustCenterPublic  *bool      `json:"trust_center_public,omitempty"`
 }
 
 var validVendorTypes = map[string]struct{}{
@@ -124,6 +126,7 @@ const baseSelect = `
 	       v.website, v.contact_name, v.contact_email, v.description,
 	       v.onboarded_date, v.offboarded_date, v.assurance_report,
 	       v.last_review_date, v.next_review_date, v.tags, v.notes,
+	       v.trust_center_public,
 	       v.created_at, v.updated_at
 	FROM vendors v
 	LEFT JOIN personnel p ON p.id = v.owner_id
@@ -217,22 +220,30 @@ func (h *Handler) Create(c echo.Context) error {
 		classArg = in.DataClassification
 	}
 
+	trustPub := false
+	if in.TrustCenterPublic != nil {
+		trustPub = *in.TrustCenterPublic
+	}
+
 	var id uuid.UUID
 	err = h.pool.QueryRow(c.Request().Context(), `
 		INSERT INTO vendors
 		    (org_id, name, vendor_type, criticality, status, data_classification,
 		     owner_id, website, contact_name, contact_email, description,
 		     onboarded_date, offboarded_date, assurance_report,
-		     last_review_date, next_review_date, tags, notes, created_by)
+		     last_review_date, next_review_date, tags, notes,
+		     trust_center_public, created_by)
 		VALUES ($1, $2, $3, $4, $5, $6, $7,
 		        NULLIF($8, ''), NULLIF($9, ''), NULLIF($10, ''), NULLIF($11, ''),
 		        $12, $13, NULLIF($14, ''),
-		        $15, $16, $17, NULLIF($18, ''), $19)
+		        $15, $16, $17, NULLIF($18, ''),
+		        $19, $20)
 		RETURNING id
 	`, orgID, in.Name, in.VendorType, crit, status, classArg,
 		in.OwnerID, in.Website, in.ContactName, in.ContactEmail, in.Description,
 		in.OnboardedDate, in.OffboardedDate, in.AssuranceReport,
-		in.LastReviewDate, in.NextReviewDate, tags, in.Notes, userID).Scan(&id)
+		in.LastReviewDate, in.NextReviewDate, tags, in.Notes,
+		trustPub, userID).Scan(&id)
 	if err != nil {
 		return err
 	}
@@ -320,13 +331,14 @@ func (h *Handler) Update(c echo.Context) error {
 		    next_review_date    = $17,
 		    tags                = $18,
 		    notes               = $19,
+		    trust_center_public = $20,
 		    updated_at          = now()
 		WHERE org_id = $1 AND id = $2
 	`, orgID, id, merged.Name, merged.VendorType, merged.Criticality, merged.Status,
 		merged.DataClassification, merged.OwnerID, merged.Website, merged.ContactName,
 		merged.ContactEmail, merged.Description, merged.OnboardedDate, merged.OffboardedDate,
 		merged.AssuranceReport, merged.LastReviewDate, merged.NextReviewDate,
-		merged.Tags, merged.Notes)
+		merged.Tags, merged.Notes, merged.TrustCenterPublic)
 	if err != nil {
 		return err
 	}
@@ -443,6 +455,7 @@ func scanOne(r singleRow) (vendorOut, error) {
 		&v.Website, &v.ContactName, &v.ContactEmail, &v.Description,
 		&v.OnboardedDate, &v.OffboardedDate, &v.AssuranceReport,
 		&v.LastReviewDate, &v.NextReviewDate, &v.Tags, &v.Notes,
+		&v.TrustCenterPublic,
 		&v.CreatedAt, &v.UpdatedAt,
 	)
 	if v.Tags == nil {
@@ -534,6 +547,9 @@ func mergeDateAndCollectionFields(out *vendorOut, in vendorIn) {
 	if in.Notes != "" {
 		n := in.Notes
 		out.Notes = &n
+	}
+	if in.TrustCenterPublic != nil {
+		out.TrustCenterPublic = *in.TrustCenterPublic
 	}
 }
 
