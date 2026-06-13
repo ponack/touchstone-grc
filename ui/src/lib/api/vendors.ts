@@ -36,6 +36,7 @@ export interface Vendor {
 	next_review_date?: string | null;
 	tags: string[];
 	notes?: string | null;
+	trust_center_public: boolean;
 	created_at: string;
 	updated_at: string;
 }
@@ -59,6 +60,7 @@ export interface VendorInput {
 	next_review_date?: string | null;
 	tags?: string[];
 	notes?: string;
+	trust_center_public?: boolean;
 }
 
 export async function listVendors(filters?: {

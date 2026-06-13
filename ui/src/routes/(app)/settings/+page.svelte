@@ -9,7 +9,7 @@
 	} from '$lib/api/system';
 	import { auth } from '$lib/stores/auth.svelte';
 	import { toasts } from '$lib/stores/toasts.svelte';
-	import { Loader2, ExternalLink, RefreshCw } from 'lucide-svelte';
+	import { Loader2, ExternalLink, RefreshCw, Globe2 } from 'lucide-svelte';
 
 	let status = $state<VersionStatus | null>(null);
 	let loading = $state(true);
@@ -92,7 +92,21 @@
 			<Loader2 class="h-4 w-4 animate-spin" /> Loading…
 		</div>
 	{:else if status}
-		<section class="mt-8 space-y-3 rounded-md border border-zinc-800 p-5">
+		<a
+			href="/settings/trust-center"
+			class="mt-8 flex items-start gap-3 rounded-md border border-zinc-800 p-5 hover:border-zinc-700"
+		>
+			<Globe2 class="mt-0.5 h-5 w-5 shrink-0" style="color: var(--accent);" />
+			<div>
+				<h2 class="text-sm font-medium text-zinc-100">Trust Center</h2>
+				<p class="mt-0.5 text-xs text-zinc-500">
+					Configure the public-facing security-posture page prospective customers visit during
+					evaluation. Branding, slug, public toggle, section visibility.
+				</p>
+			</div>
+		</a>
+
+		<section class="mt-6 space-y-3 rounded-md border border-zinc-800 p-5">
 			<h2 class="text-sm font-medium text-zinc-200">Version</h2>
 
 			<dl class="grid grid-cols-[160px_1fr] gap-y-3 text-sm">

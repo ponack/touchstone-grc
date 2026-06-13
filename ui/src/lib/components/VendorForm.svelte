@@ -33,6 +33,7 @@
 			next_review_date: string | null;
 			tags: string[];
 			notes: string;
+			trust_center_public: boolean;
 		}) => void | Promise<void>;
 		onCancel: () => void;
 	}
@@ -75,6 +76,8 @@
 	let tagsRaw = $state((initial?.tags ?? []).join(', '));
 	// svelte-ignore state_referenced_locally
 	let notes = $state(initial?.notes ?? '');
+	// svelte-ignore state_referenced_locally
+	let trustCenterPublic = $state(initial?.trust_center_public ?? false);
 
 	async function handle(e: SubmitEvent) {
 		e.preventDefault();
@@ -104,7 +107,8 @@
 			last_review_date: lastReviewDate || null,
 			next_review_date: nextReviewDate || null,
 			tags,
-			notes: notes.trim()
+			notes: notes.trim(),
+			trust_center_public: trustCenterPublic
 		});
 	}
 </script>
@@ -316,6 +320,26 @@
 				placeholder="Audit notes, contract specifics, DPA status, anything an auditor would want context on."
 			></textarea>
 		</div>
+	</FieldsetSection>
+
+	<FieldsetSection
+		legend="Public exposure"
+		description="Choose whether this vendor appears in the public subprocessor section of your Trust Center. Only active vendors with this flag set are listed."
+	>
+		<label class="flex items-start gap-3 text-sm text-zinc-300">
+			<input
+				type="checkbox"
+				bind:checked={trustCenterPublic}
+				class="mt-0.5 h-4 w-4 rounded border-zinc-700 bg-zinc-900 accent-[var(--accent)]"
+			/>
+			<span>
+				List this vendor on the public Trust Center
+				<span class="block text-xs text-zinc-500">
+					Shows the name, vendor type, optional website, and assurance report. Nothing else from
+					this record is exposed.
+				</span>
+			</span>
+		</label>
 	</FieldsetSection>
 
 	<div class="flex items-center gap-3 pt-2">
