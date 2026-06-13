@@ -65,6 +65,7 @@ type trustCenterOut struct {
 	ContactURL        *string   `json:"contact_url,omitempty"`
 	ShowFrameworks    bool      `json:"show_frameworks"`
 	ShowSubprocessors bool      `json:"show_subprocessors"`
+	ShowIncidents     bool      `json:"show_incidents"`
 	ShowContact       bool      `json:"show_contact"`
 	UpdatedAt         time.Time `json:"updated_at"`
 }
@@ -80,6 +81,7 @@ type trustCenterIn struct {
 	ContactURL        string `json:"contact_url,omitempty"`
 	ShowFrameworks    *bool  `json:"show_frameworks,omitempty"`
 	ShowSubprocessors *bool  `json:"show_subprocessors,omitempty"`
+	ShowIncidents     *bool  `json:"show_incidents,omitempty"`
 	ShowContact       *bool  `json:"show_contact,omitempty"`
 }
 
@@ -191,6 +193,7 @@ func buildPatch(orgID uuid.UUID, in trustCenterIn) ([]string, []any) {
 	addStr("contact_url", in.ContactURL)
 	addBool("show_frameworks", in.ShowFrameworks)
 	addBool("show_subprocessors", in.ShowSubprocessors)
+	addBool("show_incidents", in.ShowIncidents)
 	addBool("show_contact", in.ShowContact)
 	return sets, args
 }
@@ -225,6 +228,7 @@ func (h *Handler) Public(c echo.Context) error {
 		"contact_url":        tc.ContactURL,
 		"show_frameworks":    tc.ShowFrameworks,
 		"show_subprocessors": tc.ShowSubprocessors,
+		"show_incidents":     tc.ShowIncidents,
 		"show_contact":       tc.ShowContact,
 		"updated_at":         tc.UpdatedAt,
 	}
@@ -242,6 +246,13 @@ func (h *Handler) Public(c echo.Context) error {
 			return err
 		}
 		resp["subprocessors"] = subs
+	}
+	if tc.ShowIncidents {
+		inc, err := h.publicIncidents(c.Request().Context(), tc.OrgID)
+		if err != nil {
+			return err
+		}
+		resp["incidents"] = inc
 	}
 
 	return c.JSON(http.StatusOK, resp)
@@ -267,6 +278,15 @@ type publicSubprocessor struct {
 	Website         *string `json:"website,omitempty"`
 }
 
+type publicIncident struct {
+	Title          string     `json:"title"`
+	Status         string     `json:"status"`
+	Severity       string     `json:"severity"`
+	OccurredAt     time.Time  `json:"occurred_at"`
+	ResolvedAt     *time.Time `json:"resolved_at,omitempty"`
+	PublicResponse *string    `json:"public_response,omitempty"`
+}
+
 func (h *Handler) publicFrameworks(ctx context.Context, orgID uuid.UUID) ([]publicFramework, error) {
 	rows, err := h.pool.Query(ctx, `
 		SELECT f.code, f.name, f.version
@@ -290,6 +310,35 @@ func (h *Handler) publicFrameworks(ctx context.Context, orgID uuid.UUID) ([]publ
 			f.Version = *v
 		}
 		out = append(out, f)
+	}
+	return out, nil
+}
+
+func (h *Handler) publicIncidents(ctx context.Context, orgID uuid.UUID) ([]publicIncident, error) {
+	// Only incidents the admin has explicitly flipped to is_public=true
+	// — the table contains the org's internal incident audit trail as
+	// well, and only the published rows belong on the customer-facing
+	// page. Newest first; cap at the most recent 30 to keep the
+	// payload bounded.
+	rows, err := h.pool.Query(ctx, `
+		SELECT title, status, severity,
+		       occurred_at, resolved_at, public_response
+		FROM trust_incidents
+		WHERE org_id = $1 AND is_public = true
+		ORDER BY occurred_at DESC
+		LIMIT 30
+	`, orgID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []publicIncident{}
+	for rows.Next() {
+		var i publicIncident
+		if err := rows.Scan(&i.Title, &i.Status, &i.Severity, &i.OccurredAt, &i.ResolvedAt, &i.PublicResponse); err != nil {
+			return nil, err
+		}
+		out = append(out, i)
 	}
 	return out, nil
 }
@@ -359,7 +408,7 @@ func (h *Handler) byOrgID(ctx context.Context, orgID uuid.UUID) (trustCenterOut,
 		SELECT t.org_id, o.slug AS org_slug, t.slug, t.is_public,
 		       t.display_name, t.tagline, t.primary_color, t.logo_url,
 		       t.contact_email, t.contact_url,
-		       t.show_frameworks, t.show_subprocessors, t.show_contact,
+		       t.show_frameworks, t.show_subprocessors, t.show_incidents, t.show_contact,
 		       t.updated_at
 		FROM trust_centers t
 		JOIN organizations o ON o.id = t.org_id
@@ -373,7 +422,7 @@ func (h *Handler) bySlug(ctx context.Context, slug string) (trustCenterOut, erro
 		SELECT t.org_id, o.slug AS org_slug, t.slug, t.is_public,
 		       t.display_name, t.tagline, t.primary_color, t.logo_url,
 		       t.contact_email, t.contact_url,
-		       t.show_frameworks, t.show_subprocessors, t.show_contact,
+		       t.show_frameworks, t.show_subprocessors, t.show_incidents, t.show_contact,
 		       t.updated_at
 		FROM trust_centers t
 		JOIN organizations o ON o.id = t.org_id
@@ -392,7 +441,7 @@ func scanOne(r singleRow) (trustCenterOut, error) {
 		&tc.OrgID, &tc.OrgSlug, &tc.Slug, &tc.IsPublic,
 		&tc.DisplayName, &tc.Tagline, &tc.PrimaryColor, &tc.LogoURL,
 		&tc.ContactEmail, &tc.ContactURL,
-		&tc.ShowFrameworks, &tc.ShowSubprocessors, &tc.ShowContact,
+		&tc.ShowFrameworks, &tc.ShowSubprocessors, &tc.ShowIncidents, &tc.ShowContact,
 		&tc.UpdatedAt,
 	)
 	return tc, err
