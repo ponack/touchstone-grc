@@ -17,6 +17,18 @@ export interface PublicSubprocessor {
 	website?: string;
 }
 
+export type PublicIncidentStatus = 'ongoing' | 'monitoring' | 'resolved';
+export type PublicIncidentSeverity = 'low' | 'medium' | 'high' | 'critical';
+
+export interface PublicIncident {
+	title: string;
+	status: PublicIncidentStatus;
+	severity: PublicIncidentSeverity;
+	occurred_at: string;
+	resolved_at?: string | null;
+	public_response?: string | null;
+}
+
 export interface PublicTrustCenter {
 	slug: string;
 	display_name: string;
@@ -27,10 +39,12 @@ export interface PublicTrustCenter {
 	contact_url?: string | null;
 	show_frameworks: boolean;
 	show_subprocessors: boolean;
+	show_incidents: boolean;
 	show_contact: boolean;
 	updated_at: string;
 	frameworks?: PublicFramework[];
 	subprocessors?: PublicSubprocessor[];
+	incidents?: PublicIncident[];
 }
 
 export class PublicTrustNotFound extends Error {

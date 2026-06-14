@@ -5,7 +5,18 @@
 		PublicTrustNotFound,
 		type PublicTrustCenter
 	} from '$lib/api/trust-public';
-	import { Loader2, ShieldCheck, Mail, ExternalLink, BadgeCheck } from 'lucide-svelte';
+	import {
+		Loader2,
+		ShieldCheck,
+		Mail,
+		ExternalLink,
+		BadgeCheck,
+		Activity,
+		CheckCircle2,
+		AlertTriangle,
+		AlertOctagon
+	} from 'lucide-svelte';
+	import type { PublicIncidentSeverity, PublicIncidentStatus } from '$lib/api/trust-public';
 
 	let trust = $state<PublicTrustCenter | null>(null);
 	let loading = $state(true);
@@ -45,6 +56,47 @@
 	function fmtUpdated(iso: string): string {
 		const d = new Date(iso);
 		return d.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+	}
+
+	function fmtDateTime(iso?: string | null): string {
+		if (!iso) return '';
+		return new Date(iso).toLocaleString();
+	}
+
+	function incidentBadgeText(s: PublicIncidentStatus): string {
+		if (s === 'monitoring') return 'monitoring';
+		if (s === 'resolved') return 'resolved';
+		return 'ongoing';
+	}
+
+	function incidentStatusColor(s: PublicIncidentStatus): string {
+		switch (s) {
+			case 'ongoing':
+				return 'bg-amber-950/50 text-amber-300';
+			case 'monitoring':
+				return 'bg-sky-950/50 text-sky-300';
+			case 'resolved':
+				return 'bg-emerald-950/50 text-emerald-300';
+		}
+	}
+
+	function incidentSeverityColor(s: PublicIncidentSeverity): string {
+		switch (s) {
+			case 'low':
+				return 'text-emerald-300';
+			case 'medium':
+				return 'text-zinc-300';
+			case 'high':
+				return 'text-amber-300';
+			case 'critical':
+				return 'text-red-300';
+		}
+	}
+
+	function incidentIcon(s: PublicIncidentStatus) {
+		if (s === 'resolved') return CheckCircle2;
+		if (s === 'monitoring') return Activity;
+		return AlertTriangle;
 	}
 </script>
 
@@ -180,6 +232,53 @@
 							</li>
 						{/each}
 					</ul>
+				</section>
+			{/if}
+
+			<!-- Incidents -->
+			{#if trust.show_incidents && trust.incidents && trust.incidents.length > 0}
+				<section class="mt-12">
+					<div class="flex items-center gap-2">
+						<AlertOctagon class="h-4 w-4" style="color: var(--public-accent);" />
+						<h2 class="text-[0.65rem] font-medium uppercase tracking-[0.22em] text-zinc-400">
+							Incident history
+						</h2>
+					</div>
+					<p class="mt-2 text-sm text-zinc-400">
+						Recent security and availability events, most recent first.
+					</p>
+					<ol class="mt-6 space-y-3">
+						{#each trust.incidents as inc, idx (idx)}
+							{@const Icon = incidentIcon(inc.status)}
+							<li class="rounded-md border border-zinc-800 bg-zinc-900/40 p-5">
+								<div class="flex flex-wrap items-start justify-between gap-3">
+									<div class="flex min-w-0 items-start gap-3">
+										<Icon class="mt-0.5 h-4 w-4 shrink-0 {incidentSeverityColor(inc.severity)}" />
+										<div class="min-w-0">
+											<p class="font-serif text-base text-zinc-100">{inc.title}</p>
+											<p class="mt-0.5 text-xs text-zinc-500">
+												Occurred {fmtDateTime(inc.occurred_at)}
+												{#if inc.resolved_at}
+													· resolved {fmtDateTime(inc.resolved_at)}
+												{/if}
+											</p>
+										</div>
+									</div>
+									<div class="flex shrink-0 items-center gap-1.5">
+										<span class="rounded px-1.5 py-0.5 text-[0.65rem] font-medium uppercase tracking-wide {incidentStatusColor(inc.status)}">
+											{incidentBadgeText(inc.status)}
+										</span>
+										<span class="rounded px-1.5 py-0.5 text-[0.65rem] font-medium uppercase tracking-wide bg-zinc-900 {incidentSeverityColor(inc.severity)}">
+											{inc.severity}
+										</span>
+									</div>
+								</div>
+								{#if inc.public_response}
+									<p class="mt-3 whitespace-pre-line text-sm text-zinc-300">{inc.public_response}</p>
+								{/if}
+							</li>
+						{/each}
+					</ol>
 				</section>
 			{/if}
 
