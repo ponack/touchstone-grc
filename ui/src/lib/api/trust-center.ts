@@ -13,6 +13,7 @@ export interface TrustCenter {
 	contact_url?: string | null;
 	show_frameworks: boolean;
 	show_subprocessors: boolean;
+	show_incidents: boolean;
 	show_contact: boolean;
 	updated_at: string;
 }
@@ -28,6 +29,7 @@ export interface TrustCenterInput {
 	contact_url?: string;
 	show_frameworks?: boolean;
 	show_subprocessors?: boolean;
+	show_incidents?: boolean;
 	show_contact?: boolean;
 }
 

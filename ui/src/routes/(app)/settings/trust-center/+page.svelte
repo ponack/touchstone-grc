@@ -22,6 +22,7 @@
 	let contactURL = $state('');
 	let showFrameworks = $state(true);
 	let showSubprocessors = $state(true);
+	let showIncidents = $state(false);
 	let showContact = $state(true);
 
 	function loadInto(tc: TrustCenter) {
@@ -36,6 +37,7 @@
 		contactURL = tc.contact_url ?? '';
 		showFrameworks = tc.show_frameworks;
 		showSubprocessors = tc.show_subprocessors;
+		showIncidents = tc.show_incidents;
 		showContact = tc.show_contact;
 	}
 
@@ -81,6 +83,7 @@
 				contact_url: contactURL.trim(),
 				show_frameworks: showFrameworks,
 				show_subprocessors: showSubprocessors,
+				show_incidents: showIncidents,
 				show_contact: showContact
 			});
 			loadInto(next);
@@ -267,6 +270,24 @@
 						Subprocessors
 						<span class="block text-xs text-zinc-500">
 							Lists active vendors you've marked "List on Trust Center" on the vendor edit page.
+						</span>
+					</span>
+				</label>
+				<label class="flex items-start gap-3 text-sm text-zinc-200">
+					<input
+						type="checkbox"
+						bind:checked={showIncidents}
+						class="mt-0.5 h-4 w-4 rounded border-zinc-700 bg-zinc-900 accent-[var(--accent)]"
+					/>
+					<span>
+						Incident history
+						<span class="block text-xs text-zinc-500">
+							Lists the 30 most recent incidents you've marked public on the
+							<a
+								href="/settings/trust-incidents"
+								class="underline decoration-dotted underline-offset-4 hover:text-zinc-200"
+								style="color: var(--accent);">incidents page</a
+							>. Shows title, status, severity, dates, and your public response.
 						</span>
 					</span>
 				</label>
