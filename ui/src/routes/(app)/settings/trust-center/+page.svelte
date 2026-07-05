@@ -23,6 +23,7 @@
 	let showFrameworks = $state(true);
 	let showSubprocessors = $state(true);
 	let showIncidents = $state(false);
+	let showBlocks = $state(false);
 	let showContact = $state(true);
 
 	function loadInto(tc: TrustCenter) {
@@ -38,6 +39,7 @@
 		showFrameworks = tc.show_frameworks;
 		showSubprocessors = tc.show_subprocessors;
 		showIncidents = tc.show_incidents;
+		showBlocks = tc.show_blocks;
 		showContact = tc.show_contact;
 	}
 
@@ -84,6 +86,7 @@
 				show_frameworks: showFrameworks,
 				show_subprocessors: showSubprocessors,
 				show_incidents: showIncidents,
+				show_blocks: showBlocks,
 				show_contact: showContact
 			});
 			loadInto(next);
@@ -288,6 +291,25 @@
 								class="underline decoration-dotted underline-offset-4 hover:text-zinc-200"
 								style="color: var(--accent);">incidents page</a
 							>. Shows title, status, severity, dates, and your public response.
+						</span>
+					</span>
+				</label>
+				<label class="flex items-start gap-3 text-sm text-zinc-200">
+					<input
+						type="checkbox"
+						bind:checked={showBlocks}
+						class="mt-0.5 h-4 w-4 rounded border-zinc-700 bg-zinc-900 accent-[var(--accent)]"
+					/>
+					<span>
+						Custom blocks
+						<span class="block text-xs text-zinc-500">
+							Renders Markdown sections you've written on the
+							<a
+								href="/settings/trust-blocks"
+								class="underline decoration-dotted underline-offset-4 hover:text-zinc-200"
+								style="color: var(--accent);">blocks page</a
+							>. Escape hatch for data-handling notes, SLA / uptime commitments, or
+							anything else that doesn't fit the fixed sections.
 						</span>
 					</span>
 				</label>

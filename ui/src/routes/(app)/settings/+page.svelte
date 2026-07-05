@@ -9,7 +9,7 @@
 	} from '$lib/api/system';
 	import { auth } from '$lib/stores/auth.svelte';
 	import { toasts } from '$lib/stores/toasts.svelte';
-	import { Loader2, ExternalLink, RefreshCw, Globe2, AlertOctagon } from 'lucide-svelte';
+	import { Loader2, ExternalLink, RefreshCw, Globe2, AlertOctagon, FileText } from 'lucide-svelte';
 
 	let status = $state<VersionStatus | null>(null);
 	let loading = $state(true);
@@ -116,6 +116,21 @@
 				<p class="mt-0.5 text-xs text-zinc-500">
 					Log internal security / availability events and (optionally) publish a cleaned-up
 					version on the public Trust Center. SOC 2 CC7.4 / ISO 27001 A.5.24-26.
+				</p>
+			</div>
+		</a>
+
+		<a
+			href="/settings/trust-blocks"
+			class="mt-3 flex items-start gap-3 rounded-md border border-zinc-800 p-5 hover:border-zinc-700"
+		>
+			<FileText class="mt-0.5 h-5 w-5 shrink-0" style="color: var(--accent);" />
+			<div>
+				<h2 class="text-sm font-medium text-zinc-100">Trust custom blocks</h2>
+				<p class="mt-0.5 text-xs text-zinc-500">
+					Named Markdown sections you can drop onto the public Trust Center. Escape hatch for
+					org-specific copy (data handling, SLA / uptime, incident policy) that doesn't fit the
+					fixed sections.
 				</p>
 			</div>
 		</a>

@@ -29,6 +29,11 @@ export interface PublicIncident {
 	public_response?: string | null;
 }
 
+export interface PublicBlock {
+	heading: string;
+	body_markdown: string;
+}
+
 export interface PublicTrustCenter {
 	slug: string;
 	display_name: string;
@@ -40,11 +45,13 @@ export interface PublicTrustCenter {
 	show_frameworks: boolean;
 	show_subprocessors: boolean;
 	show_incidents: boolean;
+	show_blocks: boolean;
 	show_contact: boolean;
 	updated_at: string;
 	frameworks?: PublicFramework[];
 	subprocessors?: PublicSubprocessor[];
 	incidents?: PublicIncident[];
+	blocks?: PublicBlock[];
 }
 
 export class PublicTrustNotFound extends Error {
