@@ -66,6 +66,7 @@ type trustCenterOut struct {
 	ShowFrameworks    bool      `json:"show_frameworks"`
 	ShowSubprocessors bool      `json:"show_subprocessors"`
 	ShowIncidents     bool      `json:"show_incidents"`
+	ShowBlocks        bool      `json:"show_blocks"`
 	ShowContact       bool      `json:"show_contact"`
 	UpdatedAt         time.Time `json:"updated_at"`
 }
@@ -82,6 +83,7 @@ type trustCenterIn struct {
 	ShowFrameworks    *bool  `json:"show_frameworks,omitempty"`
 	ShowSubprocessors *bool  `json:"show_subprocessors,omitempty"`
 	ShowIncidents     *bool  `json:"show_incidents,omitempty"`
+	ShowBlocks        *bool  `json:"show_blocks,omitempty"`
 	ShowContact       *bool  `json:"show_contact,omitempty"`
 }
 
@@ -194,6 +196,7 @@ func buildPatch(orgID uuid.UUID, in trustCenterIn) ([]string, []any) {
 	addBool("show_frameworks", in.ShowFrameworks)
 	addBool("show_subprocessors", in.ShowSubprocessors)
 	addBool("show_incidents", in.ShowIncidents)
+	addBool("show_blocks", in.ShowBlocks)
 	addBool("show_contact", in.ShowContact)
 	return sets, args
 }
@@ -229,6 +232,7 @@ func (h *Handler) Public(c echo.Context) error {
 		"show_frameworks":    tc.ShowFrameworks,
 		"show_subprocessors": tc.ShowSubprocessors,
 		"show_incidents":     tc.ShowIncidents,
+		"show_blocks":        tc.ShowBlocks,
 		"show_contact":       tc.ShowContact,
 		"updated_at":         tc.UpdatedAt,
 	}
@@ -253,6 +257,13 @@ func (h *Handler) Public(c echo.Context) error {
 			return err
 		}
 		resp["incidents"] = inc
+	}
+	if tc.ShowBlocks {
+		blocks, err := h.publicBlocks(c.Request().Context(), tc.OrgID)
+		if err != nil {
+			return err
+		}
+		resp["blocks"] = blocks
 	}
 
 	return c.JSON(http.StatusOK, resp)
@@ -287,6 +298,11 @@ type publicIncident struct {
 	PublicResponse *string    `json:"public_response,omitempty"`
 }
 
+type publicBlock struct {
+	Heading      string `json:"heading"`
+	BodyMarkdown string `json:"body_markdown"`
+}
+
 func (h *Handler) publicFrameworks(ctx context.Context, orgID uuid.UUID) ([]publicFramework, error) {
 	rows, err := h.pool.Query(ctx, `
 		SELECT f.code, f.name, f.version
@@ -310,6 +326,28 @@ func (h *Handler) publicFrameworks(ctx context.Context, orgID uuid.UUID) ([]publ
 			f.Version = *v
 		}
 		out = append(out, f)
+	}
+	return out, nil
+}
+
+func (h *Handler) publicBlocks(ctx context.Context, orgID uuid.UUID) ([]publicBlock, error) {
+	rows, err := h.pool.Query(ctx, `
+		SELECT heading, body_markdown
+		FROM trust_blocks
+		WHERE org_id = $1 AND is_public = true
+		ORDER BY position ASC, created_at ASC
+	`, orgID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []publicBlock{}
+	for rows.Next() {
+		var b publicBlock
+		if err := rows.Scan(&b.Heading, &b.BodyMarkdown); err != nil {
+			return nil, err
+		}
+		out = append(out, b)
 	}
 	return out, nil
 }
@@ -408,7 +446,7 @@ func (h *Handler) byOrgID(ctx context.Context, orgID uuid.UUID) (trustCenterOut,
 		SELECT t.org_id, o.slug AS org_slug, t.slug, t.is_public,
 		       t.display_name, t.tagline, t.primary_color, t.logo_url,
 		       t.contact_email, t.contact_url,
-		       t.show_frameworks, t.show_subprocessors, t.show_incidents, t.show_contact,
+		       t.show_frameworks, t.show_subprocessors, t.show_incidents, t.show_blocks, t.show_contact,
 		       t.updated_at
 		FROM trust_centers t
 		JOIN organizations o ON o.id = t.org_id
@@ -422,7 +460,7 @@ func (h *Handler) bySlug(ctx context.Context, slug string) (trustCenterOut, erro
 		SELECT t.org_id, o.slug AS org_slug, t.slug, t.is_public,
 		       t.display_name, t.tagline, t.primary_color, t.logo_url,
 		       t.contact_email, t.contact_url,
-		       t.show_frameworks, t.show_subprocessors, t.show_incidents, t.show_contact,
+		       t.show_frameworks, t.show_subprocessors, t.show_incidents, t.show_blocks, t.show_contact,
 		       t.updated_at
 		FROM trust_centers t
 		JOIN organizations o ON o.id = t.org_id
@@ -441,7 +479,7 @@ func scanOne(r singleRow) (trustCenterOut, error) {
 		&tc.OrgID, &tc.OrgSlug, &tc.Slug, &tc.IsPublic,
 		&tc.DisplayName, &tc.Tagline, &tc.PrimaryColor, &tc.LogoURL,
 		&tc.ContactEmail, &tc.ContactURL,
-		&tc.ShowFrameworks, &tc.ShowSubprocessors, &tc.ShowIncidents, &tc.ShowContact,
+		&tc.ShowFrameworks, &tc.ShowSubprocessors, &tc.ShowIncidents, &tc.ShowBlocks, &tc.ShowContact,
 		&tc.UpdatedAt,
 	)
 	return tc, err
