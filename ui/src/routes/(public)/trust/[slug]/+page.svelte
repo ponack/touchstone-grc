@@ -14,9 +14,11 @@
 		Activity,
 		CheckCircle2,
 		AlertTriangle,
-		AlertOctagon
+		AlertOctagon,
+		FileText
 	} from 'lucide-svelte';
 	import type { PublicIncidentSeverity, PublicIncidentStatus } from '$lib/api/trust-public';
+	import { marked } from 'marked';
 
 	let trust = $state<PublicTrustCenter | null>(null);
 	let loading = $state(true);
@@ -279,6 +281,30 @@
 							</li>
 						{/each}
 					</ol>
+				</section>
+			{/if}
+
+			<!-- Custom Markdown blocks -->
+			{#if trust.show_blocks && trust.blocks && trust.blocks.length > 0}
+				<section class="mt-12">
+					<div class="flex items-center gap-2">
+						<FileText class="h-4 w-4" style="color: var(--public-accent);" />
+						<h2 class="text-[0.65rem] font-medium uppercase tracking-[0.22em] text-zinc-400">
+							Additional detail
+						</h2>
+					</div>
+					<div class="mt-6 space-y-8">
+						{#each trust.blocks as b, idx (idx)}
+							<article class="rounded-md border border-zinc-800 bg-zinc-900/40 p-6">
+								<h3 class="font-serif text-xl text-zinc-100" style="letter-spacing: -0.01em;">
+									{b.heading}
+								</h3>
+								<div class="prose prose-invert prose-sm mt-3 max-w-none text-zinc-300">
+									{@html marked.parse(b.body_markdown)}
+								</div>
+							</article>
+						{/each}
+					</div>
 				</section>
 			{/if}
 

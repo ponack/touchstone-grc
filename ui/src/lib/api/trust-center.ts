@@ -14,6 +14,7 @@ export interface TrustCenter {
 	show_frameworks: boolean;
 	show_subprocessors: boolean;
 	show_incidents: boolean;
+	show_blocks: boolean;
 	show_contact: boolean;
 	updated_at: string;
 }
@@ -30,6 +31,7 @@ export interface TrustCenterInput {
 	show_frameworks?: boolean;
 	show_subprocessors?: boolean;
 	show_incidents?: boolean;
+	show_blocks?: boolean;
 	show_contact?: boolean;
 }
 
