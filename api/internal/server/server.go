@@ -27,6 +27,7 @@ import (
 	"github.com/ponack/touchstone/internal/queue"
 	"github.com/ponack/touchstone/internal/risks"
 	"github.com/ponack/touchstone/internal/scans"
+	"github.com/ponack/touchstone/internal/trustblocks"
 	"github.com/ponack/touchstone/internal/trustcenter"
 	"github.com/ponack/touchstone/internal/trustincidents"
 	"github.com/ponack/touchstone/internal/updates"
@@ -106,6 +107,7 @@ func Run(ctx context.Context, cfg *config.Config, pool *pgxpool.Pool) error {
 	trustH.RegisterAdmin(v1)
 	trustH.RegisterPublic(e)
 	trustincidents.NewHandler(pool).Register(v1)
+	trustblocks.NewHandler(pool).Register(v1)
 
 	updatesStore := updates.NewStore(pool)
 	updatesPoller := updates.NewPoller(updatesStore)
