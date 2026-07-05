@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/ponack/touchstone-grc/releases/tag/v0.10.1"><img src="https://img.shields.io/badge/release-v0.10.1-C49020?style=flat-square" alt="v0.10.1" /></a>
+  <a href="https://github.com/ponack/touchstone-grc/releases/tag/v0.10.2"><img src="https://img.shields.io/badge/release-v0.10.2-C49020?style=flat-square" alt="v0.10.2" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue?style=flat-square" alt="AGPL-3.0" /></a>
 </p>
 
@@ -20,7 +20,7 @@
 
 Sibling project to [Crucible IAP](https://github.com/ponack/crucible-iap). Standalone — runs without Crucible. Optional integration via public API in a later phase.
 
-> **Status:** v0.10.1 shipped 2026-06-14 — **Phase 8 continues: incident history**. Trust Center gains a status-page-lite. Admins log internal security / availability events at `/settings/trust-incidents` with severity (low / medium / high / critical), status (ongoing / monitoring / resolved), occurred + resolved timestamps, and two visibility tiers: an internal `summary` for the audit trail (never leaves the API) and a `public_response` that surfaces on the public Trust Center when both the row's `is_public=true` AND the new `show_incidents` section flag are on. Public page lists the 30 most recent published rows newest-first with severity-tinted icons. Maps to SOC 2 CC7.4 (incident response) + CC2.3 (external communication during incidents) and ISO/IEC 27001:2022 A.5.24-26 (IS incident management). NDA-gated document downloads, custom Markdown blocks, and questionnaire automation still queued for later v0.10.x / v0.11.x.
+> **Status:** v0.10.2 shipped 2026-07-05 — **Phase 8 continues: custom Markdown blocks**. Trust Center gains named, ordered content sections the admin drops onto the public page — data-handling notes, SLA / uptime commitments, incident policy, sub-processor addendum, anything that doesn't fit the fixed framework / subprocessor / incident sections. Admins draft privately at `/settings/trust-blocks` (with a live preview toggle that runs `marked.parse` client-side) and flip each block to `is_public=true` when ready. Ordering via move-up / move-down buttons that swap positions with the immediate neighbor inside a serializable transaction. Public page renders each block's Markdown between the incident history and contact CTA sections. Maps loosely to SOC 2 CC2.3 (external communications) and ISO/IEC 27001:2022 A.5.18 (public information). NDA-gated document downloads and questionnaire automation still queued for later v0.10.x / v0.11.x.
 
 ## What it does
 
@@ -70,8 +70,8 @@ docker compose up -d
 Or pull pre-built images directly:
 
 ```text
-ghcr.io/ponack/touchstone-api:0.10.1
-ghcr.io/ponack/touchstone-ui:0.10.1
+ghcr.io/ponack/touchstone-api:0.10.2
+ghcr.io/ponack/touchstone-ui:0.10.2
 ```
 
 Running behind an external reverse proxy (OPNsense, Traefik, nginx, separate Caddy)?
@@ -88,7 +88,7 @@ Caddy / nginx snippet.
 - **Phase 5** — GCP series: Workspace 2SV, Cloud Storage, VPC firewall, Cloud Logging sinks, Security Command Center, Cloud SQL. *(complete — v0.5.0)*
 - **Phase 6** — Framework breadth: CIS AWS Foundations v1.5 *(complete — v0.6.0, 51 rules)*, PCI DSS v4.0 *(complete — v0.7.0, 9 automatable rules)*, HIPAA Security Rule *(complete — v0.8.0, 9 automatable rules)*, ISO/IEC 27001:2022 Annex A *(complete — v0.8.1, 9 automatable rules)*. **Phase 6 complete.**
 - **Phase 7** — GRC surface: personnel *(complete — v0.9.0)*, asset inventory *(complete — v0.9.1)*, vendor register *(complete — v0.9.2)*, visual lift *(complete — v0.9.3)*, risk register *(complete — v0.9.4)*. **Phase 7 complete.**
-- **Phase 8** — Trust Center: public compliance page *(MVP complete — v0.10.0)*, incident history *(complete — v0.10.1)*, NDA-gated documents + custom Markdown blocks + questionnaire automation *(in progress)*.
+- **Phase 8** — Trust Center: public compliance page *(MVP complete — v0.10.0)*, incident history *(complete — v0.10.1)*, custom Markdown blocks *(complete — v0.10.2)*, NDA-gated documents + questionnaire automation *(in progress)*.
 - **Phase 9** — Optional Crucible IAP connector (scans Crucible stacks / runs / policies as evidence).
 
 ## License
